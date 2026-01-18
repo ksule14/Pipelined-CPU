@@ -120,12 +120,14 @@ module reg_file_tb;
             rd_data = actual.rd_data;
             mem_data = actual.mem_data;
 
-            expected = new();
+            expected = new(); // Create new expected transaction
             expected.regs = actual.regs;
 
             // Wait for a clock edge
             @(posedge clk);
             #1;
+            
+        end
 
 
 
