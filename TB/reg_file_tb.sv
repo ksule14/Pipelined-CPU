@@ -122,14 +122,33 @@ module reg_file_tb;
 
             expected = new(); // Create new expected transaction
             expected.regs = actual.regs;
+            expected.reg_write = actual.reg_write;
+            expected.mem_to_reg = actual.mem_to_reg;
+            expected.rs1 = actual.rs1;
+            expected.rs2 = actual.rs2;
+            expected.rd = actual.rd;
+            expected.rd_data = actual.rd_data;
+            expected.mem_data = actual.mem_data;
 
             // Wait for a clock edge
             @(posedge clk);
-            #1;
+            #1; // Wait for DUT outputs to settle
+
+            // Update actual with DUT register state
+            for (int i = 0; i < 32; i++) begin
+                actual.regs[i] = dut.regs[i];
+            end
             
+            actual.rs1_data = rs1_data;
+            actual.rs2_data = rs2_data;
+            
+            // Copy to expected with updated state
+            expected.regs = actual.regs;
+            
+            gm.reg_data(expected);
+            sb.compare(actual, expected);
         end
-
-
-
+        $display("Test completed");
+        $finish;
     end
 endmodule
