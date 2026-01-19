@@ -22,7 +22,7 @@ class reg_trans;
 endclass
 
 class golden_model;
-    function void reg_data(const ref reg_trans trans);
+    function void reg_data( ref reg_trans trans);
         if (trans.reg_write) begin
             if (trans.mem_to_reg) begin
                 trans.regs[trans.rd] = trans.mem_data;
