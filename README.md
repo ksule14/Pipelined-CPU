@@ -26,3 +26,7 @@ The ALU takes rs1 and either rs2 or the immediate as inputs. Based on the input 
 The Data memory (DM) has a read and write signal. If the read signal is high, the DM provides the data at the address supplied by the ALU. If the write signal is high, the data contained in rs2 is written to the DM at the address supplied by the ALU.
 ## Codes Package
 The codes package defines parameters and data types used across files. Parameters include Data width, word width and depth. 
+
+## Testbenches
+The testbenches are mostly composed of a transaction class, golden model, and scoreboard. Data inputs are randomized and simulations are conducted on EDA Playground. The golden model calculates an ideal value for each set of randomized inputs. The scoreboard compares the golden model output to that of the DUT and outputs an error message when there is a mismatch. The ALU specifically uses SystemVerilog assertions to test specific instruction types.
+
