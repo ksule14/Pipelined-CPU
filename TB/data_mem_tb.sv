@@ -3,11 +3,7 @@ import codes_pkg::DEPTH;
 import codes_pkg::WORD_WIDTH;
 
 module ram_tb;
-    // Testbench components
-    data_trans trans;
-    golden_model gm;
-    scoreboard sb;
-
+   
     // Input signals
     logic clk;
     logic mem_read;
@@ -56,16 +52,18 @@ module ram_tb;
     // Write transaction
     task automatic do_write(input logic [DATA_WIDTH-1:0] a,
                             input logic [DATA_WIDTH-1:0] d);
+        // drive on negedge to avoid race with posedge logic
+        @(negedge clk);
+        mem_write  = 1'b1;
+        mem_read   = 1'b0;
+        addr       = a;
+        write_data = d;
         @(posedge clk);
-        mem_write  <= 1'b1;
-        mem_read   <= 1'b0;
-        addr       <= a;
-        write_data <= d;
-        // update model on write
+        // update model on write edge
         model_mem[a] = d;
-        @(posedge clk);
-        mem_write  <= 1'b0;
-        write_data <= '0;
+        @(negedge clk);
+        mem_write  = 1'b0;
+        write_data = '0;
     endtask
 
     // Read transaction + check
@@ -73,14 +71,16 @@ module ram_tb;
         logic [DATA_WIDTH-1:0] exp;
         exp = model_mem[a];
 
-        // sync read: check after 1 cycle
+        // sync read: present address before posedge, sample after posedge update
+        @(negedge clk);
+        mem_read  = 1'b1;
+        mem_write = 1'b0;
+        addr      = a;
         @(posedge clk);
-        mem_read <= 1'b1;
-        mem_write <= 1'b0;
-        addr <= a;
-        @(posedge clk);
+        #1;
         if (read_data !== exp) $error("READ MISMATCH (sync) addr=%0d exp=%h got=%h", a, exp, read_data);
-        mem_read <= 1'b0;
+        @(negedge clk);
+        mem_read = 1'b0;
     endtask
 
     // Test sequence
