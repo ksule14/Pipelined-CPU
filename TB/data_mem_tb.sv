@@ -1,6 +1,5 @@
 import codes_pkg::DATA_WIDTH;
 import codes_pkg::DEPTH;
-import codes_pkg::WORD_WIDTH;
 
 module ram_tb;
    
