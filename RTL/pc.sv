@@ -16,4 +16,5 @@ module pc (
             pc_current <= pc_next; // Update PC
         end
     end
+    
 endmodule
