@@ -1,4 +1,10 @@
+import codes_pkg::WORD_WIDTH;
+
 module main_control (
+    input logic clk,
+    input logic rst_n,
+    input logic [WORD_WIDTH-1:0] addr,
+    input logic [WORD_WIDTH-1:0] instr_in,
     input [6:0] opcode,
     input logic zero_flag,
     output logic [1:0] alu_op,
@@ -8,19 +14,31 @@ module main_control (
     output logic mem_to_reg,
     output logic alu_src,
     output logic reg_write,
-    output logic pc_src
+    output logic pc_src,
+    output logic [WORD_WIDTH-1:0] pc_addr,
+    output logic [WORD_WIDTH-1:0] instr_out
 );
-    always_comb begin
-        unique case (opcode)
-            7'b0110011: begin // R-type
-                alu_op = 2'b10;
-                branch = 0;
-                mem_read = 0;
-                mem_write = 0;
-                mem_to_reg = 0;
-                alu_src = 0;
-                reg_write = 1;
-                pc_src = 0;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            alu_op <= 2'b00;
+            branch <= 0;
+            mem_read <= 0;
+            mem_write <= 0;
+            mem_to_reg <= 0;
+            alu_src <= 0;
+            reg_write <= 0;
+            pc_src <= 0;
+        end else begin
+            unique case (opcode)
+                7'b0110011: begin // R-type
+                    alu_op = 2'b10;
+                    branch = 0;
+                    mem_read = 0;
+                    mem_write = 0;
+                    mem_to_reg = 0;
+                    alu_src = 0;
+                    reg_write = 1;
+                    pc_src = 0;
             end   
             7'b0010011: begin // Addi
                 alu_op = 2'b00;
@@ -75,5 +93,14 @@ module main_control (
                 pc_src = 0;
             end
         endcase
+    end
+    end
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            pc_addr <= '0;
+            instr_out <= '0;
+        else
+            pc_addr <= addr;
+            instr_out <= instr_in;
     end
 endmodule

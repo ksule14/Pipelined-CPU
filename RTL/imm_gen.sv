@@ -2,6 +2,8 @@ import codes_pkg::DATA_WIDTH;
 import codes_pkg::WORD_WIDTH;
 
 module imm_gen (
+    input logic clk,
+    input logic rst_n,
     input logic [WORD_WIDTH-1:0] instruction,
     output logic [DATA_WIDTH-1:0] sign_extended_imm
 );
@@ -25,5 +27,10 @@ module imm_gen (
         endcase
     end
 
-    assign sign_extended_imm = imm;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            sign_extended_imm <= '0;
+        else
+            sign_extended_imm <= imm;
+    end
 endmodule
