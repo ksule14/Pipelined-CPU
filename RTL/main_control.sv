@@ -6,6 +6,7 @@ module main_control (
     input logic [WORD_WIDTH-1:0] addr,
     input [6:0] opcode,
     input logic zero_flag,
+    input logic [WORD_WIDTH-1:0] instr,
     output logic [1:0] alu_op,
     output logic branch,
     output logic mem_read,
@@ -14,7 +15,8 @@ module main_control (
     output logic alu_src,
     output logic reg_write,
     output logic pc_src,
-    output logic [WORD_WIDTH-1:0] pc_addr
+    output logic [WORD_WIDTH-1:0] pc_addr,
+    output logic [WORD_WIDTH-1:0] instr_out
 );
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -96,7 +98,9 @@ module main_control (
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n)
             pc_addr <= '0;
+            instr_out <= '0;
         else
             pc_addr <= addr;
+            instr_out <= instr;
     end
 endmodule

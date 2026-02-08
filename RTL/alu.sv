@@ -22,54 +22,42 @@ module alu (
     output logic mem_write_out,
     output logic mem_to_reg_out,
     output logic reg_write_out,
-    output logic pc_src,
+    output logic pc_src_out,
     output logic addr_out
 );
     logic [DATA_WIDTH-1:0] operand2; // internal signal for mux
+    logic [DATA_WIDTH-1:0] result_next;
+    logic zero_next;
     assign operand2 = alu_src ? sign_extended_imm : reg_2; // SEI if 1, reg_2 if 0
+
+    always_comb begin
+        result_next = '0;
+        zero_next = 1'b0;
+
+        // combinational ALU operations
+        unique case (control)
+            ADD: result_next = reg_1 + operand2;
+            SUB: result_next = reg_1 - operand2;
+            AND: result_next = reg_1 & operand2;
+            OR: result_next = reg_1 | operand2;
+            SLT: result_next = ($signed(reg_1) < $signed(operand2))
+                ? {{(DATA_WIDTH-1){1'b0}}, 1'b1} : '0;
+            SLTU: result_next = (reg_1 < operand2)
+                ? {{(DATA_WIDTH-1){1'b0}}, 1'b1} : '0;
+            default: result_next = 'x; // unknown for unsupported operations
+        endcase
+
+        if (result_next == '0)
+            zero_next = 1'b1;
+    end
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             result <= '0;
-            zero_flag <= 0;
+            zero_flag <= 1'b0;
         end else begin
-        // logic for operations
-            unique case (control)
-                ADD: begin 
-                    result = reg_1 + operand2;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;        
-                    end
-                SUB: begin
-                    result = reg_1 - operand2;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;
-                end
-                AND: begin
-                    result = reg_1 & operand2;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;      
-                end
-                OR: begin
-                    result = reg_1 | operand2;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;      
-                end
-                SLT: begin
-                    result = ($signed(reg_1) < $signed(operand2)) ? 64'b1 : 64'b0;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;      
-                end
-                SLTU: begin
-                    result = (reg_1 < operand2) ? 64'b1 : 64'b0;
-                    if (result == 0) zero_flag = 1;
-                    else zero_flag = 0;      
-                end
-                default: begin
-                    result = 64'bx; // default to unknown for unsupported operations
-                    zero_flag = 0;
-                end
-            endcase
+            result <= result_next;
+            zero_flag <= zero_next;
         end
     end
     always_ff @(posedge clk or negedge rst_n) begin
@@ -79,7 +67,7 @@ module alu (
             mem_write_out <= 0;
             mem_to_reg_out <= 0;
             reg_write_out <= 0;
-            pc_src <= 0;
+            pc_src_out <= 0;
             addr_out <= 0;
         end else begin
             branch_out <= branch;
@@ -87,7 +75,7 @@ module alu (
             mem_write_out <= mem_write;
             mem_to_reg_out <= mem_to_reg;
             reg_write_out <= reg_write;
-            pc_src <= pc_src;
+            pc_src_out <= pc_src;
             addr_out <= addr;
         end
     end

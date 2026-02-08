@@ -23,7 +23,7 @@ module imm_gen (
             7'b1100011: // BEQ
                 imm = {{(DATA_WIDTH-13){instruction[31]}}, instruction[31], instruction[7], instruction[30:25], instruction[11:8], 1'b0}; // B-type
             default:
-                imm = 64'bx; // Default to unknown for unsupported opcodes
+                imm = 'b0; // Default to unknown for unsupported opcodes
         endcase
     end
 
