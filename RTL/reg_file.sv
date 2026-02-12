@@ -17,10 +17,10 @@ module reg_file (
     logic [DATA_WIDTH-1:0] reg_data;
     assign reg_data = mem_to_reg ? mem_data : rd_data;
 
-    assign rs1_data = (rs1_addr == 5'd0) ? 64'd0 : regs[rs1_addr]; // x0 is always 0
-    assign rs2_data = (rs2_addr == 5'd0) ? 64'd0 : regs[rs2_addr]; // x0 is always 0
-
     always_ff @(posedge clk) begin
+        rs1_data <= (rs1_addr == 5'd0) ? 64'd0 : regs[rs1_addr]; // x0 is always 0
+        rs2_data <= (rs2_addr == 5'd0) ? 64'd0 : regs[rs2_addr]; // x0 is always 0
+
         if (reg_write && (rd_addr != 5'd0)) begin
             regs[rd_addr] <= reg_data; // Write to register if reg_write is high and not x0
         end

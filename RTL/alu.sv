@@ -60,6 +60,7 @@ module alu (
             zero_flag <= zero_next;
         end
     end
+    
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             branch_out <= 0;
