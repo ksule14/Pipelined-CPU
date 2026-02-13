@@ -19,10 +19,13 @@ module data_mem (
         if (mem_write) begin
             data_mem[word_addr] <= write_data;
         end
+    end
+
+    always_comb begin
         if (mem_read) begin
-            read_data <= data_mem[word_addr];
+            read_data = data_mem[word_addr];
         end else begin
-            read_data <= '0;
+            read_data = '0;
         end
     end
 endmodule

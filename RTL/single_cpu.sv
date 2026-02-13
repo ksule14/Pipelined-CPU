@@ -22,6 +22,9 @@ module single_cpu (
     logic [DATA_WIDTH-1:0] rs2_data;
     logic [DATA_WIDTH-1:0] rd_data;
     logic [DATA_WIDTH-1:0] mem_data;
+    logic [DATA_WIDTH-1:0] wb_data;
+    logic [4:0] wb_rd_addr;
+    logic wb_reg_write;
     logic [DATA_WIDTH-1:0] sign_extended_imm;
     logic zero_flag;
 
@@ -60,13 +63,11 @@ module single_cpu (
     // Register File
     reg_file reg_file_inst (
         .clk(clk),
-        .reg_write(reg_write),
-        .mem_to_reg(mem_to_reg),
+        .reg_write(wb_reg_write),
         .rs1_addr(instruction[19:15]),
         .rs2_addr(instruction[24:20]),
-        .rd_addr(instruction[11:7]),
-        .rd_data(rd_data),
-        .mem_data(mem_data),
+        .rd_addr(wb_rd_addr),
+        .write_data(wb_data),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data)
     );
@@ -103,5 +104,19 @@ module single_cpu (
         .addr(rd_data),
         .write_data(rs2_data),
         .read_data(mem_data)
+    );
+
+    // Write Back
+    write_back wb_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .reg_write_in(reg_write),
+        .mem_to_reg(mem_to_reg),
+        .rd_addr(instruction[11:7]),
+        .alu_data(rd_data),
+        .mem_data(mem_data),
+        .wb_data(wb_data),
+        .rd_addr_out(wb_rd_addr),
+        .reg_write_out(wb_reg_write)
     );
 endmodule
