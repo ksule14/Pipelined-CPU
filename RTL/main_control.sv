@@ -3,7 +3,7 @@ import codes_pkg::WORD_WIDTH;
 module main_control (
     input logic clk,
     input logic rst_n,
-    input logic [WORD_WIDTH-1:0] addr,
+    input logic [DATA_WIDTH-1:0] addr,
     input [6:0] opcode,
     input logic zero_flag,
     input logic [WORD_WIDTH-1:0] instr,
@@ -15,7 +15,7 @@ module main_control (
     output logic alu_src,
     output logic reg_write,
     output logic pc_src,
-    output logic [WORD_WIDTH-1:0] pc_addr,
+    output logic [DATA_WIDTH-1:0] pc_addr,
     output logic [WORD_WIDTH-1:0] instr_out
 );
     always_ff @(posedge clk or negedge rst_n) begin
