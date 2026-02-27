@@ -12,9 +12,14 @@ module reg_file (
 );
     logic [DATA_WIDTH-1:0] regs [0:31]; // 32 registers of DATA_WIDTH
 
-    always_ff @(posedge clk) begin
-        rs1_data <= (rs1_addr == 5'd0) ? '0 : regs[rs1_addr];
-        rs2_data <= (rs2_addr == 5'd0) ? '0 : regs[rs2_addr];
+    always_comb begin
+        rs1_data = (rs1_addr == 5'd0) ? '0 : regs[rs1_addr];
+        rs2_data = (rs2_addr == 5'd0) ? '0 : regs[rs2_addr];
+
+        if (reg_write && (rd_addr != 5'd0)) begin
+            if (rd_addr == rs1_addr) rs1_data = write_data;
+            if (rd_addr == rs2_addr) rs2_data = write_data;
+        end
     end
 
     always_ff @(posedge clk) begin
