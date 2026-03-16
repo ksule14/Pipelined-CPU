@@ -4,7 +4,7 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 	input logic [REG_WIDTH-1:0] if_id_rs2,
 
 	// ID/EX stage destination/control (instruction ahead of decode)
-	input logic                 id_ex_mem_read,
+	input logic                 id_ex_mem_load,
 	input logic [REG_WIDTH-1:0] id_ex_rd,
 
 	// Control hazard input (branch/jump resolved as taken)
@@ -22,7 +22,7 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 
 	always_comb begin
 		// Canonical load-use hazard: value from a load in EX is needed by instr in ID.
-		load_use_hazard = id_ex_mem_read && (id_ex_rd != '0) &&
+		load_use_hazard = id_ex_mem_load && (id_ex_rd != '0) &&
 						  ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2));
 
 		// Branch compare in EX means forwarding should handle branch ALU sources;

@@ -7,4 +7,3 @@ parameter DATA_WIDTH = 64;
 parameter WORD_WIDTH = 32;
 parameter DEPTH = 256;
 endpackage
-
