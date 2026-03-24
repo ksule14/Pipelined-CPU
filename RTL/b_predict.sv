@@ -25,8 +25,8 @@ module branch_predictor #(
     logic [INDEX_BITS-1:0] fetch_index;
     logic [INDEX_BITS-1:0] update_index;
     
-    assign fetch_index = fetch_pc[INDEX_BITS+1:2];
-    assign update_index = update_pc[INDEX_BITS+1:2]
+    assign fetch_index = pc_fetch[INDEX_BITS+1:2];
+    assign update_index = update_pc[INDEX_BITS+1:2];
 
     // combinational read- predict based on current state
     always_comb begin
