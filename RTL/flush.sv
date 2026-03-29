@@ -14,7 +14,7 @@ module flush_controller (
 
     output logic flush_IF_ID,
     output logic flush_ID_EX,
-    output logic pc_redirect,
+    output logic pc_redirect
 );
     logic mispredicted;
 

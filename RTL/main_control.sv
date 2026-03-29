@@ -1,106 +1,48 @@
-import codes_pkg::WORD_WIDTH;
+import codes_pkg::*;
 
 module main_control (
-    input logic clk,
-    input logic rst_n,
-    input logic [DATA_WIDTH-1:0] addr,
-    input [6:0] opcode,
-    input logic zero_flag,
-    input logic [WORD_WIDTH-1:0] instr,
+    input  logic [6:0] opcode,
     output logic [1:0] alu_op,
-    output logic branch,
-    output logic mem_read,
-    output logic mem_write,
-    output logic mem_to_reg,
-    output logic alu_src,
-    output logic reg_write,
-    output logic pc_src,
-    output logic [DATA_WIDTH-1:0] pc_addr,
-    output logic [WORD_WIDTH-1:0] instr_out
+    output logic       branch,
+    output logic       mem_read,
+    output logic       mem_write,
+    output logic       mem_to_reg,
+    output logic       alu_src,
+    output logic       reg_write
 );
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            alu_op <= 2'b00;
-            branch <= 0;
-            mem_read <= 0;
-            mem_write <= 0;
-            mem_to_reg <= 0;
-            alu_src <= 0;
-            reg_write <= 0;
-            pc_src <= 0;
-        end else begin
-            unique case (opcode)
-                7'b0110011: begin // R-type
-                    alu_op = 2'b10;
-                    branch = 0;
-                    mem_read = 0;
-                    mem_write = 0;
-                    mem_to_reg = 0;
-                    alu_src = 0;
-                    reg_write = 1;
-                    pc_src = 0;
-            end   
-            7'b0010011: begin // Addi
-                alu_op = 2'b00;
-                branch = 0;
-                mem_read = 0;
-                mem_write = 0;
-                mem_to_reg = 0;
-                alu_src = 1;
-                reg_write = 1;
-                pc_src = 0;
+    always_comb begin
+        alu_op     = 2'b00;
+        branch     = 1'b0;
+        mem_read   = 1'b0;
+        mem_write  = 1'b0;
+        mem_to_reg = 1'b0;
+        alu_src    = 1'b0;
+        reg_write  = 1'b0;
+
+        unique case (opcode)
+            7'b0110011: begin // R-type
+                alu_op    = 2'b10;
+                reg_write = 1'b1;
+            end
+            7'b0010011: begin // I-type (addi etc.)
+                alu_src   = 1'b1;
+                reg_write = 1'b1;
             end
             7'b0000011: begin // Load
-                alu_op = 2'b00;
-                branch = 0;
-                mem_read = 1;
-                mem_write = 0;
-                mem_to_reg = 1;
-                alu_src = 1;
-                reg_write = 1;
-                pc_src = 0;
+                mem_read   = 1'b1;
+                mem_to_reg = 1'b1;
+                alu_src    = 1'b1;
+                reg_write  = 1'b1;
             end
             7'b0100011: begin // Store
-                alu_op = 2'b00;
-                branch = 0;
-                mem_read = 0;
-                mem_write = 1;
-                mem_to_reg = 0;
-                alu_src = 1;
-                reg_write = 0;
-                pc_src = 0;
+                mem_write = 1'b1;
+                alu_src   = 1'b1;
             end
-
             7'b1100011: begin // BEQ
                 alu_op = 2'b01;
-                branch = 1;
-                mem_read = 0;
-                mem_write = 0;
-                mem_to_reg = 0;
-                alu_src = 0;
-                reg_write = 0;
-                if (branch & zero_flag) pc_src = 1;
-                else pc_src = 0;
+                branch = 1'b1;
             end
-            default: begin
-                alu_op = 2'b00; // Default to ADD for unsupported opcodes
-                branch = 0;
-                mem_read = 0;
-                mem_write = 0;
-                mem_to_reg = 0;
-                alu_src = 0;
-                reg_write = 0;
-                pc_src = 0;
-            end
+            default: begin end
         endcase
-    end
-    end
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            pc_addr <= '0;
-            instr_out <= '0;
-        else
-            pc_addr <= addr;
-            instr_out <= instr;
     end
 endmodule

@@ -2,15 +2,10 @@ import codes_pkg::DATA_WIDTH;
 import codes_pkg::WORD_WIDTH;
 
 module imm_gen (
-    input logic clk,
-    input logic rst_n,
-    input logic [WORD_WIDTH-1:0] instruction,
-    output logic [DATA_WIDTH-1:0] sign_extended_imm
+    input  logic [WORD_WIDTH-1:0] instruction,
+    output logic [DATA_WIDTH-1:0] imm
 );
-
-    logic [DATA_WIDTH-1:0] imm;
     logic [6:0] opcode;
-
     assign opcode = instruction[6:0];
 
     always_comb begin
@@ -23,14 +18,7 @@ module imm_gen (
             7'b1100011: // BEQ
                 imm = {{(DATA_WIDTH-13){instruction[31]}}, instruction[31], instruction[7], instruction[30:25], instruction[11:8], 1'b0}; // B-type
             default:
-                imm = 'b0; // Default to unknown for unsupported opcodes
+                imm = '0;
         endcase
-    end
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            sign_extended_imm <= '0;
-        else
-            sign_extended_imm <= imm;
     end
 endmodule
