@@ -27,7 +27,7 @@ module ram (
         else begin
             if (write_en) begin
                 mem[addr>>3] <= write_data;
-                ready <= 0;
+                mem_ready <= 0;
                 counter <= 0;
             end
             else if (read_en) begin
@@ -46,7 +46,7 @@ module ram (
                 counter <= 0;
             end
         end
-    end                         
+    end                      
 endmodule
 
 

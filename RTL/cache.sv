@@ -9,7 +9,7 @@ module cache #(parameter INDEX_BITS = 4)
     input logic [DATA_WIDTH-1:0] write_data,
     input logic read_en,
     input logic write_en,
-    output logic stall,
+    output logic cache_stall,
 
     // memory interface signals
     output logic [DATA_WIDTH-1:0] read_data,
@@ -39,8 +39,8 @@ module cache #(parameter INDEX_BITS = 4)
 
     //FSM states
 
-    typedef enum logic [1:0] {
-        IDLE, FETCH_MEMORY, FILL_CACHE
+    typedef enum logic {
+        IDLE, FETCH_MEMORY
     } state_t;
 
     state_t state;
@@ -49,6 +49,7 @@ module cache #(parameter INDEX_BITS = 4)
 
     assign mem_address = addr;
     assign mem_read_en = (state == FETCH_MEMORY);
+    assign cache_stall = (state != IDLE) || (read_en && !hit);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -61,7 +62,6 @@ module cache #(parameter INDEX_BITS = 4)
                 case(state)
                     IDLE: begin
                         if (read_en && !hit) begin
-                            stall <= 1;
                             state <= FETCH_MEMORY;
                         end
                         else if (write_en) begin
@@ -75,12 +75,8 @@ module cache #(parameter INDEX_BITS = 4)
                             cache_data[index] <= mem_read_data;
                             cache_tag[index] <= tag;
                             cache_valid[index] <= 1;
-                            state <= FILL_CACHE;
+                            state <= IDLE;
                         end
-                    end
-                    FILL_CACHE: begin
-                        stall <= 0;
-                        state <= IDLE;
                     end
                 endcase
             end

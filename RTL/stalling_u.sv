@@ -10,11 +10,17 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 	// Control hazard input (branch/jump resolved as taken)
 	input logic                 ex_branch_taken,
 
+	// Cache miss stall input
+	input logic                 mem_stall,
+
 	// Stall/flush outputs
 	output logic                pc_en,
 	output logic                if_id_en,
+	output logic                id_ex_en,
 	output logic                id_ex_flush,
 	output logic                if_id_flush,
+	output logic                ex_mem_en,
+	output logic                mem_wb_en,
 	output logic                stall
 );
 
@@ -25,15 +31,18 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 		load_use_hazard = id_ex_mem_load && (id_ex_rd != '0) &&
 						  ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2));
 
-		// Branch compare in EX means forwarding should handle branch ALU sources;
-		// stalling is only required for classic load-use cases.
-		stall = load_use_hazard;
+		stall = load_use_hazard || mem_stall;
 
-		// On stall: freeze fetch/decode and inject bubble into EX.
+		// On any stall: freeze fetch/decode
 		pc_en      = ~stall;
 		if_id_en   = ~stall;
-		// Also flush ID/EX on taken branch to squash the younger instruction in ID.
-		id_ex_flush = stall || ex_branch_taken;
+
+		// On cache miss: freeze entire pipeline (hold all registers, no flushes)
+		// On load-use:   only freeze fetch/decode, flush ID/EX to insert bubble
+		id_ex_en   = ~mem_stall;
+		id_ex_flush = (load_use_hazard && !mem_stall) || ex_branch_taken;
+		ex_mem_en  = ~mem_stall;
+		mem_wb_en  = ~mem_stall;
 
 		// On taken control transfer: squash next wrong-path instruction in IF/ID.
 		if_id_flush = ex_branch_taken;

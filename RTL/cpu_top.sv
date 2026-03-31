@@ -1,7 +1,7 @@
 import codes_pkg::*;
 import branch_fsm_pkg::*;
 
-module multicycle_cpu (
+module cpu_top (
     input logic clk,
     input logic rst_n
 );
@@ -110,6 +110,9 @@ module multicycle_cpu (
     logic predict_taken;
     logic pc_en;
     logic if_id_en;
+    logic id_ex_en;
+    logic ex_mem_en;
+    logic mem_wb_en;
     logic stall;
     logic id_ex_flush_stall;   // from stalling_u
     logic if_id_flush_stall;   // from stalling_u
@@ -169,16 +172,20 @@ module multicycle_cpu (
     );
 
     stalling_u u_stall (
-        .if_id_rs1     (if_id_instr[19:15]),
-        .if_id_rs2     (if_id_instr[24:20]),
-        .id_ex_mem_load(id_ex_mem_read),
-        .id_ex_rd      (id_ex_rd),
+        .if_id_rs1      (if_id_instr[19:15]),
+        .if_id_rs2      (if_id_instr[24:20]),
+        .id_ex_mem_load (id_ex_mem_read),
+        .id_ex_rd       (id_ex_rd),
         .ex_branch_taken(branch_taken),
-        .pc_en         (pc_en),
-        .if_id_en      (if_id_en),
-        .id_ex_flush   (id_ex_flush_stall),
-        .if_id_flush   (if_id_flush_stall),
-        .stall         (stall)
+        .mem_stall      (mem_stall),
+        .pc_en          (pc_en),
+        .if_id_en       (if_id_en),
+        .id_ex_en       (id_ex_en),
+        .id_ex_flush    (id_ex_flush_stall),
+        .if_id_flush    (if_id_flush_stall),
+        .ex_mem_en      (ex_mem_en),
+        .mem_wb_en      (mem_wb_en),
+        .stall          (stall)
     );
 
     // =========================================================================
@@ -245,7 +252,7 @@ module multicycle_cpu (
         .write_data   (ex_mem_rs2_data),
         .read_en      (ex_mem_mem_read),
         .write_en     (ex_mem_mem_write),
-        .stall        (mem_stall),
+        .cache_stall  (mem_stall),
         .read_data    (mem_read_data),
         .mem_address  (ram_addr),
         .mem_read_en  (ram_read_en),
@@ -336,7 +343,7 @@ module multicycle_cpu (
             id_ex_rd         <= '0;
             id_ex_funct3     <= '0;
             id_ex_bit_30     <= 1'b0;
-        end else begin
+        end else if (id_ex_en) begin
             id_ex_alu_op     <= id_alu_op;
             id_ex_alu_src    <= id_alu_src;
             id_ex_branch     <= id_branch;
@@ -372,7 +379,7 @@ module multicycle_cpu (
             ex_mem_branch_addr <= '0;
             ex_mem_pc          <= '0;
             ex_mem_rd          <= '0;
-        end else begin
+        end else if (ex_mem_en) begin
             ex_mem_branch      <= id_ex_branch;
             ex_mem_mem_read    <= id_ex_mem_read;
             ex_mem_mem_write   <= id_ex_mem_write;
@@ -397,7 +404,7 @@ module multicycle_cpu (
             mem_wb_alu_data   <= '0;
             mem_wb_mem_data   <= '0;
             mem_wb_rd         <= '0;
-        end else begin
+        end else if (mem_wb_en) begin
             mem_wb_mem_to_reg <= ex_mem_mem_to_reg;
             mem_wb_reg_write  <= ex_mem_reg_write;
             mem_wb_alu_data   <= ex_mem_alu_result;
