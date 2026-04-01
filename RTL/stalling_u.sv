@@ -9,6 +9,7 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 
 	// Control hazard input (branch/jump resolved as taken)
 	input logic                 ex_branch_taken,
+	input logic                 pc_redirect,
 
 	// Cache miss stall input
 	input logic                 mem_stall,
@@ -34,7 +35,7 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 		stall = load_use_hazard || mem_stall;
 
 		// On any stall: freeze fetch/decode
-		pc_en      = ~stall;
+		pc_en      = pc_redirect || ~stall;
 		if_id_en   = ~stall;
 
 		// On cache miss: freeze entire pipeline (hold all registers, no flushes)

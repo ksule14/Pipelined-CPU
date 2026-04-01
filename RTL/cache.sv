@@ -15,6 +15,7 @@ module cache #(parameter INDEX_BITS = 4)
     output logic [DATA_WIDTH-1:0] read_data,
     output logic [31:0] mem_address,
     output logic mem_read_en,
+    output logic mem_write_en,
     input logic [DATA_WIDTH-1:0] mem_read_data,
     input logic mem_ready
 );
@@ -48,7 +49,8 @@ module cache #(parameter INDEX_BITS = 4)
     assign read_data = cache_data[index];
 
     assign mem_address = addr;
-    assign mem_read_en = (state == FETCH_MEMORY);
+    assign mem_read_en  = (state == FETCH_MEMORY);
+    assign mem_write_en = (state == IDLE) && write_en;
     assign cache_stall = (state != IDLE) || (read_en && !hit);
 
     always_ff @(posedge clk or negedge rst_n) begin

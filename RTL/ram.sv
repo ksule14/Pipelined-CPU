@@ -23,6 +23,9 @@ module ram (
             counter <= 0;
             mem_ready <= 0;
             read_data <= 0;
+            for (int i=0; i<DEPTH; i++) begin
+                mem[i] <= 0;
+            end
         end
         else begin
             if (write_en) begin

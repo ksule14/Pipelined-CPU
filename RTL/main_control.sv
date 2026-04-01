@@ -24,7 +24,7 @@ module main_control (
                 alu_op    = 2'b10;
                 reg_write = 1'b1;
             end
-            7'b0010011: begin // I-type (addi etc.)
+            7'b0010011: begin // I-type
                 alu_src   = 1'b1;
                 reg_write = 1'b1;
             end
@@ -42,7 +42,6 @@ module main_control (
                 alu_op = 2'b01;
                 branch = 1'b1;
             end
-            default: begin end
         endcase
     end
 endmodule
