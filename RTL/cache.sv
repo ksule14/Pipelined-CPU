@@ -13,14 +13,11 @@ module cache #(parameter INDEX_BITS = 4)
 
     // memory interface signals
     output logic [DATA_WIDTH-1:0] read_data,
-    output logic [31:0] mem_address,
-    output logic mem_read_en,
-    output logic mem_write_en,
-    input logic [DATA_WIDTH-1:0] mem_read_data,
-    input logic mem_ready
+   
+   cache_ram.cache mem_bus
 );
     localparam ENTRIES = 2**INDEX_BITS;
-    localparam TAG_BITS = 32 - INDEX_BITS - 2;
+    localparam TAG_BITS = WORD_WIDTH - INDEX_BITS - 2;
 
     //cache storage
 
@@ -32,7 +29,7 @@ module cache #(parameter INDEX_BITS = 4)
     logic [TAG_BITS-1:0] tag;
 
     assign index = addr[INDEX_BITS+1:2];
-    assign tag = addr[31:INDEX_BITS+2];
+    assign tag = addr[WORD_WIDTH-1:INDEX_BITS+2];
 
     //hit detection
     logic hit;
@@ -48,9 +45,9 @@ module cache #(parameter INDEX_BITS = 4)
 
     assign read_data = cache_data[index];
 
-    assign mem_address = addr;
-    assign mem_read_en  = (state == FETCH_MEMORY);
-    assign mem_write_en = (state == IDLE) && write_en;
+    assign mem_bus.mem_address = addr;
+    assign mem_bus.mem_read_en  = (state == FETCH_MEMORY);
+    assign mem_bus.mem_write_en = (state == IDLE) && write_en;
     assign cache_stall = (state != IDLE) || (read_en && !hit);
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -73,8 +70,8 @@ module cache #(parameter INDEX_BITS = 4)
                         end
                     end
                     FETCH_MEMORY: begin
-                        if(mem_ready) begin
-                            cache_data[index] <= mem_read_data;
+                        if(mem_bus.mem_ready) begin
+                            cache_data[index] <= mem_bus.mem_read_data;
                             cache_tag[index] <= tag;
                             cache_valid[index] <= 1;
                             state <= IDLE;

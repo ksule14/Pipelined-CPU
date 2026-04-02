@@ -6,11 +6,8 @@ module ram (
     input logic clk,
     input logic rst_n,
     input logic [DATA_WIDTH-1:0] write_data,
-    input logic [WORD_WIDTH-1:0] addr,
-    input logic write_en,
-    input logic read_en,
-    output logic [DATA_WIDTH-1:0] read_data,
-    output logic mem_ready
+   
+    cache_ram.ram mem_bus
 );
 
     localparam READ_LATENCY = 2;
@@ -21,31 +18,31 @@ module ram (
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             counter <= 0;
-            mem_ready <= 0;
-            read_data <= 0;
+            mem_bus.mem_ready <= 0;
+            mem_bus.mem_read_data <= 0;
             for (int i=0; i<DEPTH; i++) begin
                 mem[i] <= 0;
             end
         end
         else begin
-            if (write_en) begin
-                mem[addr>>3] <= write_data;
-                mem_ready <= 0;
+            if (mem_bus.mem_write_en) begin
+                mem[mem_bus.mem_address>>3] <= write_data;
+                mem_bus.mem_ready <= 0;
                 counter <= 0;
             end
-            else if (read_en) begin
+            else if (mem_bus.mem_read_en) begin
                 if (counter == READ_LATENCY) begin
-                    read_data <= mem[addr>>3];
-                    mem_ready <= 1;
+                    mem_bus.mem_read_data <= mem[mem_bus.mem_address>>3];
+                    mem_bus.mem_ready <= 1;
                     counter <=0;
                 end
                 else begin
                     counter <= counter + 1;
-                    mem_ready <=0;
+                    mem_bus.mem_ready <=0;
                 end
             end
             else begin
-                mem_ready <= 0;
+                mem_bus.mem_ready <= 0;
                 counter <= 0;
             end
         end

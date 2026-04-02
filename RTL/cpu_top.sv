@@ -93,12 +93,9 @@ module cpu_top (
     // =========================================================================
     logic [DATA_WIDTH-1:0] mem_read_data;
     logic                  mem_stall;
-    logic [31:0]           ram_addr;
-    logic                  ram_read_en;
-    logic                  ram_write_en;
-    logic [DATA_WIDTH-1:0] ram_read_data;
-    logic                  ram_ready;
 
+    cache_ram u_mem_bus;
+    
     // =========================================================================
     // WB stage wires
     // =========================================================================
@@ -256,22 +253,14 @@ module cpu_top (
         .write_en     (ex_mem_mem_write),
         .cache_stall  (mem_stall),
         .read_data    (mem_read_data),
-        .mem_address  (ram_addr),
-        .mem_read_en  (ram_read_en),
-        .mem_write_en (ram_write_en),
-        .mem_read_data(ram_read_data),
-        .mem_ready    (ram_ready)
+        .mem_bus       (u_mem_bus.cache)
     );
 
     ram u_ram (
         .clk       (clk),
         .rst_n     (rst_n),
         .write_data(ex_mem_rs2_data),
-        .addr      (ram_addr),
-        .write_en  (ram_write_en),
-        .read_en   (ram_read_en),
-        .read_data (ram_read_data),
-        .mem_ready (ram_ready)
+        .mem_bus   (u_mem_bus.ram)
     );
 
     // =========================================================================
