@@ -94,7 +94,7 @@ module cpu_top (
     logic [DATA_WIDTH-1:0] mem_read_data;
     logic                  mem_stall;
 
-    cache_ram u_mem_bus;
+    cache_ram u_mem_bus();
     
     // =========================================================================
     // WB stage wires
