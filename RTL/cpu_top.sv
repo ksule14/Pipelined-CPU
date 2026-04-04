@@ -1,5 +1,6 @@
 import codes_pkg::*;
 import branch_fsm_pkg::*;
+import pipeline_pkg::*;
 
 module cpu_top (
     input logic clk,
@@ -9,52 +10,22 @@ module cpu_top (
     // =========================================================================
     // IF/ID pipeline register
     // =========================================================================
-    logic [DATA_WIDTH-1:0] if_id_pc;
-    logic [WORD_WIDTH-1:0] if_id_instr;
+    if_id_t if_id_reg;
 
     // =========================================================================
     // ID/EX pipeline register
     // =========================================================================
-    logic [1:0]            id_ex_alu_op;
-    logic                  id_ex_alu_src;
-    logic                  id_ex_branch;
-    logic                  id_ex_mem_read;
-    logic                  id_ex_mem_write;
-    logic                  id_ex_mem_to_reg;
-    logic                  id_ex_reg_write;
-    logic [DATA_WIDTH-1:0] id_ex_rs1_data;
-    logic [DATA_WIDTH-1:0] id_ex_rs2_data;
-    logic [DATA_WIDTH-1:0] id_ex_imm;
-    logic [DATA_WIDTH-1:0] id_ex_pc;
-    logic [4:0]            id_ex_rs1;
-    logic [4:0]            id_ex_rs2;
-    logic [4:0]            id_ex_rd;
-    logic [2:0]            id_ex_funct3;
-    logic                  id_ex_bit_30;
+    id_ex_t id_ex_reg;
 
     // =========================================================================
     // EX/MEM pipeline register
     // =========================================================================
-    logic                  ex_mem_branch;
-    logic                  ex_mem_mem_read;
-    logic                  ex_mem_mem_write;
-    logic                  ex_mem_mem_to_reg;
-    logic                  ex_mem_reg_write;
-    logic [DATA_WIDTH-1:0] ex_mem_alu_result;
-    logic                  ex_mem_zero_flag;
-    logic [DATA_WIDTH-1:0] ex_mem_rs2_data;
-    logic [DATA_WIDTH-1:0] ex_mem_branch_addr;
-    logic [DATA_WIDTH-1:0] ex_mem_pc;
-    logic [4:0]            ex_mem_rd;
+    ex_mem_t ex_mem_reg;
 
     // =========================================================================
     // MEM/WB pipeline register
     // =========================================================================
-    logic                  mem_wb_mem_to_reg;
-    logic                  mem_wb_reg_write;
-    logic [DATA_WIDTH-1:0] mem_wb_alu_data;
-    logic [DATA_WIDTH-1:0] mem_wb_mem_data;
-    logic [4:0]            mem_wb_rd;
+    mem_wb_t mem_wb_reg;
 
     // =========================================================================
     // IF stage wires
@@ -143,7 +114,7 @@ module cpu_top (
     // =========================================================================
 
     main_control u_ctrl (
-        .opcode    (if_id_instr[6:0]),
+        .opcode    (if_id_reg.instr[6:0]),
         .alu_op    (id_alu_op),
         .branch    (id_branch),
         .mem_read  (id_mem_read),
@@ -154,26 +125,26 @@ module cpu_top (
     );
 
     imm_gen u_immgen (
-        .instruction(if_id_instr),
+        .instruction(if_id_reg.instr),
         .imm        (id_imm)
     );
 
     reg_file u_regfile (
         .clk       (clk),
-        .reg_write (mem_wb_reg_write),
-        .rs1_addr  (if_id_instr[19:15]),
-        .rs2_addr  (if_id_instr[24:20]),
-        .rd_addr   (mem_wb_rd),
+        .reg_write (mem_wb_reg.reg_write),
+        .rs1_addr  (if_id_reg.instr[19:15]),
+        .rs2_addr  (if_id_reg.instr[24:20]),
+        .rd_addr   (mem_wb_reg.rd),
         .write_data(wb_data),
         .rs1_data  (id_rs1_data),
         .rs2_data  (id_rs2_data)
     );
 
     stalling_u u_stall (
-        .if_id_rs1      (if_id_instr[19:15]),
-        .if_id_rs2      (if_id_instr[24:20]),
-        .id_ex_mem_load (id_ex_mem_read),
-        .id_ex_rd       (id_ex_rd),
+        .if_id_rs1      (if_id_reg.instr[19:15]),
+        .if_id_rs2      (if_id_reg.instr[24:20]),
+        .id_ex_mem_load (id_ex_reg.mem_read),
+        .id_ex_rd       (id_ex_reg.rd),
         .ex_branch_taken(branch_taken),
         .pc_redirect    (pc_redirect),
         .mem_stall      (mem_stall),
@@ -247,10 +218,10 @@ module cpu_top (
     cache u_cache (
         .clk          (clk),
         .rst_n        (rst_n),
-        .addr         (ex_mem_alu_result),
-        .write_data   (ex_mem_rs2_data),
-        .read_en      (ex_mem_mem_read),
-        .write_en     (ex_mem_mem_write),
+        .addr         (ex_mem_reg.alu_result),
+        .write_data   (ex_mem_reg.rs2_data),
+        .read_en      (ex_mem_reg.mem_read),
+        .write_en     (ex_mem_reg.mem_write),
         .cache_stall  (mem_stall),
         .read_data    (mem_read_data),
         .mem_bus       (u_mem_bus.cache)
@@ -268,9 +239,9 @@ module cpu_top (
     // =========================================================================
 
     write_back u_wb (
-        .mem_to_reg(mem_wb_mem_to_reg),
-        .alu_data  (mem_wb_alu_data),
-        .mem_data  (mem_wb_mem_data),
+        .mem_to_reg(mem_wb_reg.mem_to_reg),
+        .alu_data  (mem_wb_reg.alu_data),
+        .mem_data  (mem_wb_reg.mem_data),
         .wb_data   (wb_data)
     );
 
@@ -291,10 +262,10 @@ module cpu_top (
     flush_controller u_flush (
         .clk             (clk),
         .rst_n           (rst_n),
-        .branch_resolved (ex_mem_branch),
+        .branch_resolved (ex_mem_reg.branch),
         .branch_taken    (branch_taken),
-        .branch_target   (ex_mem_branch_addr),
-        .branch_addr     (ex_mem_branch_addr),
+        .branch_target   (ex_mem_reg.branch_addr),
+        .branch_addr     (ex_mem_reg.branch_addr),
         .predicted_taken (predict_taken),
         .flush_IF_ID     (flush_IF_ID),
         .flush_ID_EX     (flush_ID_EX),
@@ -306,11 +277,10 @@ module cpu_top (
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n || flush_IF_ID || if_id_flush_stall) begin
-            if_id_pc    <= '0;
-            if_id_instr <= '0;
+            if_id_reg <= '0;
         end else if (if_id_en) begin
-            if_id_pc    <= pc_current;
-            if_id_instr <= if_instruction;
+            if_id_reg.pc    <= pc_current;
+            if_id_reg.instr <= if_instruction;
         end
     end
 
@@ -319,39 +289,24 @@ module cpu_top (
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n || id_ex_flush_stall || flush_ID_EX) begin
-            id_ex_alu_op     <= '0;
-            id_ex_alu_src    <= 1'b0;
-            id_ex_branch     <= 1'b0;
-            id_ex_mem_read   <= 1'b0;
-            id_ex_mem_write  <= 1'b0;
-            id_ex_mem_to_reg <= 1'b0;
-            id_ex_reg_write  <= 1'b0;
-            id_ex_rs1_data   <= '0;
-            id_ex_rs2_data   <= '0;
-            id_ex_imm        <= '0;
-            id_ex_pc         <= '0;
-            id_ex_rs1        <= '0;
-            id_ex_rs2        <= '0;
-            id_ex_rd         <= '0;
-            id_ex_funct3     <= '0;
-            id_ex_bit_30     <= 1'b0;
+            id_ex_reg <= '0;
         end else if (id_ex_en) begin
-            id_ex_alu_op     <= id_alu_op;
-            id_ex_alu_src    <= id_alu_src;
-            id_ex_branch     <= id_branch;
-            id_ex_mem_read   <= id_mem_read;
-            id_ex_mem_write  <= id_mem_write;
-            id_ex_mem_to_reg <= id_mem_to_reg;
-            id_ex_reg_write  <= id_reg_write;
-            id_ex_rs1_data   <= id_rs1_data;
-            id_ex_rs2_data   <= id_rs2_data;
-            id_ex_imm        <= id_imm;
-            id_ex_pc         <= if_id_pc;
-            id_ex_rs1        <= if_id_instr[19:15];
-            id_ex_rs2        <= if_id_instr[24:20];
-            id_ex_rd         <= if_id_instr[11:7];
-            id_ex_funct3     <= if_id_instr[14:12];
-            id_ex_bit_30     <= if_id_instr[30];
+            id_ex_reg.alu_op     <= id_alu_op;
+            id_ex_reg.alu_src    <= id_alu_src;
+            id_ex_reg.branch     <= id_branch;
+            id_ex_reg.mem_read   <= id_mem_read;
+            id_ex_reg.mem_write  <= id_mem_write;
+            id_ex_reg.mem_to_reg <= id_mem_to_reg;
+            id_ex_reg.reg_write  <= id_reg_write;
+            id_ex_reg.rs1_data   <= id_rs1_data;
+            id_ex_reg.rs2_data   <= id_rs2_data;
+            id_ex_reg.imm        <= id_imm;
+            id_ex_reg.pc         <= if_id_reg.pc;
+            id_ex_reg.rs1        <= if_id_reg.instr[19:15];
+            id_ex_reg.rs2        <= if_id_reg.instr[24:20];
+            id_ex_reg.rd         <= if_id_reg.instr[11:7];
+            id_ex_reg.funct3     <= id_ex_reg.funct3;
+            id_ex_reg.bit_30     <= id_ex_reg.bit_30;
         end
     end
 
@@ -360,29 +315,19 @@ module cpu_top (
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            ex_mem_branch      <= 1'b0;
-            ex_mem_mem_read    <= 1'b0;
-            ex_mem_mem_write   <= 1'b0;
-            ex_mem_mem_to_reg  <= 1'b0;
-            ex_mem_reg_write   <= 1'b0;
-            ex_mem_alu_result  <= '0;
-            ex_mem_zero_flag   <= 1'b0;
-            ex_mem_rs2_data    <= '0;
-            ex_mem_branch_addr <= '0;
-            ex_mem_pc          <= '0;
-            ex_mem_rd          <= '0;
+            ex_mem_reg <= '0;
         end else if (ex_mem_en) begin
-            ex_mem_branch      <= id_ex_branch;
-            ex_mem_mem_read    <= id_ex_mem_read;
-            ex_mem_mem_write   <= id_ex_mem_write;
-            ex_mem_mem_to_reg  <= id_ex_mem_to_reg;
-            ex_mem_reg_write   <= id_ex_reg_write;
-            ex_mem_alu_result  <= ex_alu_result;
-            ex_mem_zero_flag   <= ex_zero_flag;
-            ex_mem_rs2_data    <= ex_alu_b_pre;
-            ex_mem_branch_addr <= ex_branch_addr;
-            ex_mem_pc          <= id_ex_pc;
-            ex_mem_rd          <= id_ex_rd;
+            ex_mem_reg.branch      <= id_ex_reg.branch;
+            ex_mem_reg.mem_read    <= id_ex_reg.mem_read;
+            ex_mem_reg.mem_write   <= id_ex_reg.mem_write;
+            ex_mem_reg.mem_to_reg  <= id_ex_reg.mem_to_reg;
+            ex_mem_reg.reg_write   <= id_ex_reg.reg_write;
+            ex_mem_reg.alu_result  <= ex_alu_result;
+            ex_mem_reg.zero_flag   <= ex_zero_flag;
+            ex_mem_reg.rs2_data    <= ex_alu_b_pre;
+            ex_mem_reg.branch_addr <= ex_branch_addr;
+            ex_mem_reg.pc          <= id_ex_reg.pc;
+            ex_mem_reg.rd          <= id_ex_reg.rd;
         end
     end
 
@@ -391,17 +336,13 @@ module cpu_top (
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            mem_wb_mem_to_reg <= 1'b0;
-            mem_wb_reg_write  <= 1'b0;
-            mem_wb_alu_data   <= '0;
-            mem_wb_mem_data   <= '0;
-            mem_wb_rd         <= '0;
+            mem_wb_reg <= '0;
         end else if (mem_wb_en) begin
-            mem_wb_mem_to_reg <= ex_mem_mem_to_reg;
-            mem_wb_reg_write  <= ex_mem_reg_write;
-            mem_wb_alu_data   <= ex_mem_alu_result;
-            mem_wb_mem_data   <= mem_read_data;
-            mem_wb_rd         <= ex_mem_rd;
+            mem_wb_reg.mem_to_reg <= ex_mem_reg.mem_to_reg;
+            mem_wb_reg.reg_write  <= ex_mem_reg.reg_write;
+            mem_wb_reg.alu_data   <= ex_mem_reg.alu_result;
+            mem_wb_reg.mem_data   <= mem_read_data;
+            mem_wb_reg.rd         <= ex_mem_reg.rd;
         end
     end
 
