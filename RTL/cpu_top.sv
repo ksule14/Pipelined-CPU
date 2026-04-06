@@ -163,51 +163,51 @@ module cpu_top (
     // =========================================================================
 
     alu_ctrl u_aluctrl (
-        .alu_op (id_ex_alu_op),
-        .bit_30 (id_ex_bit_30),
-        .funct3 (id_ex_funct3),
+        .alu_op (id_ex_reg.alu_op),
+        .bit_30 (id_ex_reg.bit_30),
+        .funct3 (id_ex_reg.funct3),
         .control(ex_alu_ctrl)
     );
 
     forwarding_u u_fwd (
-        .ex_rs1        (id_ex_rs1),
-        .ex_rs2        (id_ex_rs2),
-        .rd_mem        (ex_mem_rd),
-        .rd_wb         (mem_wb_rd),
-        .reg_write_mem (ex_mem_reg_write),
-        .ex_mem_is_load(ex_mem_mem_read),
-        .reg_write_wb  (mem_wb_reg_write),
+        .ex_rs1        (id_ex_reg.rs1),
+        .ex_rs2        (id_ex_reg.rs2),
+        .rd_mem        (ex_mem_reg.rd),
+        .rd_wb         (mem_wb_reg.rd),
+        .reg_write_mem (ex_mem_reg.reg_write),
+        .ex_mem_is_load(ex_mem_reg.mem_read),
+        .reg_write_wb  (mem_wb_reg.reg_write),
         .forward_a     (ex_forward_a),
         .forward_b     (ex_forward_b)
     );
 
     always_comb begin
         unique case (ex_forward_a)
-            2'b10:   ex_alu_a = ex_mem_alu_result;
+            2'b10:   ex_alu_a = ex_mem_reg.alu_result;
             2'b01:   ex_alu_a = wb_data;
-            default: ex_alu_a = id_ex_rs1_data;
+            default: ex_alu_a = id_ex_reg.rs1_data;
         endcase
 
         unique case (ex_forward_b)
-            2'b10:   ex_alu_b_pre = ex_mem_alu_result;
+            2'b10:   ex_alu_b_pre = ex_mem_reg.alu_result;
             2'b01:   ex_alu_b_pre = wb_data;
-            default: ex_alu_b_pre = id_ex_rs2_data;
+            default: ex_alu_b_pre = id_ex_reg.rs2_data;
         endcase
     end
 
     alu u_alu (
         .rs1_data  (ex_alu_a),
         .rs2_data  (ex_alu_b_pre),
-        .imm       (id_ex_imm),
-        .alu_src   (id_ex_alu_src),
+        .imm       (id_ex_reg.imm),
+        .alu_src   (id_ex_reg.alu_src),
         .control   (ex_alu_ctrl),
         .alu_result(ex_alu_result),
         .zero_flag (ex_zero_flag)
     );
 
     branch_calc u_branchcalc (
-        .pc         (id_ex_pc),
-        .imm        (id_ex_imm),
+        .pc         (id_ex_reg.pc),
+        .imm        (id_ex_reg.imm),
         .branch_addr(ex_branch_addr)
     );
 
@@ -230,7 +230,7 @@ module cpu_top (
     ram u_ram (
         .clk       (clk),
         .rst_n     (rst_n),
-        .write_data(ex_mem_rs2_data),
+        .write_data(ex_mem_reg.rs2_data),
         .mem_bus   (u_mem_bus.ram)
     );
 
@@ -254,8 +254,8 @@ module cpu_top (
         .rst_n        (rst_n),
         .pc_fetch     (pc_current),
         .predict_taken(predict_taken),
-        .update_en    (ex_mem_branch),
-        .update_pc    (ex_mem_pc),
+        .update_en    (ex_mem_reg.branch),
+        .update_pc    (ex_mem_reg.pc),
         .actual_taken (branch_taken)
     );
 
