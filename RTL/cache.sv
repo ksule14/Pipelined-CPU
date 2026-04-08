@@ -48,7 +48,7 @@ module cache #(parameter INDEX_BITS = 4)
     assign mem_bus.mem_address = addr;
     assign mem_bus.mem_read_en  = (state == FETCH_MEMORY);
     assign mem_bus.mem_write_en = (state == IDLE) && write_en;
-    assign cache_stall = (state != IDLE) || (read_en && !hit);
+    assign cache_stall = (state != IDLE) || (read_en && !hit) || (mem_bus.mem_write_done == 0 && write_en);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

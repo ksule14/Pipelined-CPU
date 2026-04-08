@@ -20,6 +20,13 @@ import codes_pkg::*;
     // memory interface signals
     cache_ram mem_bus();
 
+    class write;
+        rand logic [WORD_WIDTH-1:0] addr;
+        rand logic [DATA_WIDTH-1:0] write_data;
+
+        constraint addr_align { addr[1:0] == 2'b00; & addr < DEPTH;}
+    endclass
+
     // instantiate cache and ram
     cache dut_cache (
         .clk(clk),
@@ -55,7 +62,22 @@ endmodule
 
 task automatic reset_dut();
     rst_n = 0;
+    #20;
     @(posedge clk);
     rst_n = 1;
 endtask
 
+task automatic write_through();
+// instantiate class and randomize variables
+    write w;
+    assert(w.randomize()) else $fatal("Randomization failed");
+    assert(w.addr < DEPTH) else $fatal ("Address out of range");
+    addr = w.addr;
+    write_data = w.write_data;
+    write_en = 1;
+    read_en = 0;
+    @(posedge clk);
+    write_en = 0;
+    #10;
+    // verify data is written to cache and ram
+    if 
