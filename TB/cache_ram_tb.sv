@@ -24,7 +24,10 @@ import codes_pkg::*;
         rand logic [WORD_WIDTH-1:0] addr;
         rand logic [DATA_WIDTH-1:0] write_data;
 
-        constraint addr_align { addr[1:0] == 2'b00; addr < DEPTH;}
+        constraint addr_align {
+            addr[1:0] == 2'b00;
+            (addr >> 2) < DEPTH;
+        }
     endclass
 
     // instantiate cache and ram
@@ -71,7 +74,7 @@ endtask
 
 task automatic write_through();
 // instantiate class and randomize variables
-    write w;
+    write w = new();
     assert(w.randomize()) else $fatal("Randomization failed");
     assert(w.addr < DEPTH) else $fatal ("Address out of range");
     addr = w.addr;

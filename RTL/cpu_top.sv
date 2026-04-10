@@ -3,8 +3,9 @@ import branch_fsm_pkg::*;
 import pipeline_pkg::*;
 
 module cpu_top (
-    input logic clk,
-    input logic rst_n
+    input  logic clk,
+    input  logic rst_n,
+    output logic error
 );
 
     // =========================================================================
@@ -73,6 +74,17 @@ module cpu_top (
     logic [DATA_WIDTH-1:0] wb_data;
 
     // =========================================================================
+    // Error signals
+    // =========================================================================
+    logic ctrl_error;      // unsupported opcode in main_control
+    logic immgen_error;    // unsupported opcode in imm_gen
+    logic aluctrl_error;   // unsupported funct3/alu_op in alu_ctrl
+    logic imem_error;      // unaligned instruction fetch
+    logic cache_error;     // unaligned data access
+
+    assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
+
+    // =========================================================================
     // Hazard / branch control wires
     // =========================================================================
     logic branch_taken;
@@ -106,7 +118,8 @@ module cpu_top (
 
     instruction_mem u_imem (
         .addr       (pc_current),
-        .instruction(if_instruction)
+        .instruction(if_instruction),
+        .error      (imem_error)
     );
 
     // =========================================================================
@@ -121,12 +134,14 @@ module cpu_top (
         .mem_write (id_mem_write),
         .mem_to_reg(id_mem_to_reg),
         .alu_src   (id_alu_src),
-        .reg_write (id_reg_write)
+        .reg_write (id_reg_write),
+        .error     (ctrl_error)
     );
 
     imm_gen u_immgen (
         .instruction(if_id_reg.instr),
-        .imm        (id_imm)
+        .imm        (id_imm),
+        .error      (immgen_error)
     );
 
     reg_file u_regfile (
@@ -166,7 +181,8 @@ module cpu_top (
         .alu_op (id_ex_reg.alu_op),
         .bit_30 (id_ex_reg.bit_30),
         .funct3 (id_ex_reg.funct3),
-        .control(ex_alu_ctrl)
+        .control(ex_alu_ctrl),
+        .error  (aluctrl_error)
     );
 
     forwarding_u u_fwd (
@@ -224,7 +240,8 @@ module cpu_top (
         .write_en     (ex_mem_reg.mem_write),
         .cache_stall  (mem_stall),
         .read_data    (mem_read_data),
-        .mem_bus       (u_mem_bus.cache)
+        .error        (cache_error),
+        .mem_bus      (u_mem_bus.cache)
     );
 
     ram u_ram (

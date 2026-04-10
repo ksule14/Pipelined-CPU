@@ -16,7 +16,7 @@ module alu (
         alu_result = '0;
         zero_flag  = 1'b0;
 
-        unique case (control)
+        case (control)
             ADD:     alu_result = rs1_data + operand2;
             SUB:     alu_result = rs1_data - operand2;
             AND:     alu_result = rs1_data & operand2;

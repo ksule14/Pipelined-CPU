@@ -8,7 +8,8 @@ module main_control (
     output logic       mem_write,
     output logic       mem_to_reg,
     output logic       alu_src,
-    output logic       reg_write
+    output logic       reg_write,
+    output logic       error
 );
     always_comb begin
         alu_op     = 2'b00;
@@ -18,8 +19,9 @@ module main_control (
         mem_to_reg = 1'b0;
         alu_src    = 1'b0;
         reg_write  = 1'b0;
+        error      = 1'b0;
 
-        unique case (opcode)
+        case (opcode)
             7'b0110011: begin // R-type
                 alu_op    = 2'b10;
                 reg_write = 1'b1;
@@ -42,6 +44,7 @@ module main_control (
                 alu_op = 2'b01;
                 branch = 1'b1;
             end
+                default: error = 1'b1; // unsupported opcode
         endcase
     end
 endmodule

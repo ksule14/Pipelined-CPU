@@ -13,8 +13,9 @@ module cache #(parameter INDEX_BITS = 4)
 
     // memory interface signals
     output logic [DATA_WIDTH-1:0] read_data,
-   
-   cache_ram.cache mem_bus
+    output logic                  error,
+
+    cache_ram.cache mem_bus
 );
     localparam ENTRIES = 2**INDEX_BITS;
     localparam TAG_BITS = WORD_WIDTH - INDEX_BITS - 2;
@@ -44,6 +45,7 @@ module cache #(parameter INDEX_BITS = 4)
     state_t state;
 
     assign read_data = cache_data[index];
+    assign error     = (read_en || write_en) && (addr[1:0] != 2'b00); // unaligned data access
 
     assign mem_bus.mem_address = addr;
     assign mem_bus.mem_read_en  = (state == FETCH_MEMORY);
