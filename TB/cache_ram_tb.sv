@@ -24,7 +24,7 @@ import codes_pkg::*;
         rand logic [WORD_WIDTH-1:0] addr;
         rand logic [DATA_WIDTH-1:0] write_data;
 
-        constraint addr_align { addr[1:0] == 2'b00; & addr < DEPTH;}
+        constraint addr_align { addr[1:0] == 2'b00; addr < DEPTH;}
     endclass
 
     // instantiate cache and ram
@@ -56,9 +56,11 @@ import codes_pkg::*;
     initial begin
         // reset DUT
         reset_dut();
+        // write through test
+        write_through();
 
+    $finish;
     end
-endmodule
 
 task automatic reset_dut();
     rst_n = 0;
@@ -78,6 +80,13 @@ task automatic write_through();
     read_en = 0;
     @(posedge clk);
     write_en = 0;
-    #10;
     // verify data is written to cache and ram
-    if 
+    assert(dut_cache.cache_data[addr >> 2] == write_data) else $fatal("Cache write failed");
+    assert(dut_ram.mem[addr >> 2] == write_data) else $fatal("RAM write failed");
+endtask
+
+task automatic read_miss();
+    // create testbenche for read miss scenario
+    // FINISH ME
+
+endmodule
