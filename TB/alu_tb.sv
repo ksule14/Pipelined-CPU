@@ -38,6 +38,7 @@ and_op();
 or_op();
 slt();
 sltu();
+alu_src_test();
 end
 
 task automatic add();
@@ -121,5 +122,49 @@ task automatic sltu();
         #1;
          assert(alu_result == 0)
         else($fatal("SLTU failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
-    end   
+    end
 endtask
+
+task automatic alu_src_test();
+    repeat(100) begin
+        assert(trans.randomize()) else $fatal("Randomization failed");
+        alu_src = 0;
+        control = ADD;
+        #1;
+        assert(alu_result == trans.rs1_data + trans.rs2_data)
+        else $fatal("alu_src=0 failed: %0d + %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
+    end
+
+    repeat(100) begin
+        assert(trans.randomize()) else $fatal("Randomization failed");
+        alu_src = 1;
+        control = ADD;
+        #1;
+        assert(alu_result == trans.rs1_data + trans.imm)
+        else $fatal("alu_src=1 failed: %0d + %0d != %0d", trans.rs1_data, trans.imm, alu_result);
+    end
+endtask
+
+task automatic overflow_test();
+    alu_src = 0;
+    control = ADD;
+    trans.rs1_data = 32'hFFFFFFFF;
+    trans.rs2_data = 32'h1;
+    #1;
+    assert(alu_result == 32'h0) else $fatal("Overflow test failed: %0d + %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
+
+    alu_src = 1;
+    control = ADD;
+    trans.rs1_data = 32'h7FFFFFFF;
+    trans.imm = 32'hACDF5432;
+    #1;
+    assert(alu_result == 32'h2ACDF5431) else $fatal("Overflow test failed: %0d + %0d != %0d", trans.rs1_data, trans.imm, alu_result);
+
+    alu_src = 0;
+    control = SUB;
+    trans.rs1_data = 32'h0;
+    trans.rs2_data = 32'h1;
+    #1;
+    assert(alu_result == 32'hFFFFFFFF) else $fatal("Overflow test failed: %0d - %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
+endtask
+endmodule
