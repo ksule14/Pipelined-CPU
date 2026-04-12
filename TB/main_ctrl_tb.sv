@@ -46,7 +46,7 @@ module main_ctrl_tb;
         $finish;
     end
 
-    task r_type_opcode();
+    task automatic r_type_opcode();
         opcode = 7'b0110011; // R-type
         #1;
         assert(alu_op == 2'b10) else $fatal("R-type: alu_op should be 10, got %b", alu_op);
@@ -59,7 +59,7 @@ module main_ctrl_tb;
         assert(error == 1'b0) else $fatal("R-type: error should be 0, got %b", error);
     endtask
 
-    task i_type_opcode();
+    task automatic i_type_opcode();
         opcode = 7'b0010011; // I-type
         #1;
         assert(alu_op == 2'b00) else $fatal("I-type: alu_op should be 00, got %b", alu_op);
@@ -72,7 +72,7 @@ module main_ctrl_tb;
         assert(error == 1'b0) else $fatal("I-type: error should be 0, got %b", error);
     endtask
 
-    task load_opcode();
+    task automatic load_opcode();
         opcode = 7'b0000011; // Load
         #1;
         assert(alu_op == 2'b00) else $fatal("Load: alu_op should be 00, got %b", alu_op);
@@ -85,7 +85,7 @@ module main_ctrl_tb;
         assert(error == 1'b0) else $fatal("Load: error should be 0, got %b", error);
     endtask
 
-    task store_opcode();
+    task automatic store_opcode();
         opcode = 7'b0100011; // Store
         #1;
         assert(alu_op == 2'b00) else $fatal("Store: alu_op should be 00, got %b", alu_op);
@@ -98,7 +98,7 @@ module main_ctrl_tb;
         assert(error == 1'b0) else $fatal("Store: error should be 0, got %b", error);
     endtask
 
-    task beq_opcode();
+    task automatic beq_opcode();
         opcode = 7'b1100011; // BEQ
         #1;
         assert(alu_op == 2'b01) else $fatal("BEQ: alu_op should be 01, got %b", alu_op);
@@ -111,7 +111,7 @@ module main_ctrl_tb;
         assert(error == 1'b0) else $fatal("BEQ: error should be 0, got %b", error);
     endtask
 
-    function is_supported_opcode(logic [6:0] opc);
+    function automatic is_supported_opcode(logic [6:0] opc);
         return (opc == 7'b0110011) || // R-type
                (opc == 7'b0010011) || // I-type
                (opc == 7'b0000011) || // Load
@@ -119,7 +119,7 @@ module main_ctrl_tb;
                (opc == 7'b1100011);   // BEQ
     endfunction
 
-    task unsupported_opcode();
+    task automatic unsupported_opcode();
         repeat(100) begin
             do begin
                 opcode = $urandom_range(0, 127);
