@@ -1,4 +1,3 @@
-import codes_pkg::*;
 
 module main_control (
     input  logic [6:0] opcode,
