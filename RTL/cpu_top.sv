@@ -101,7 +101,7 @@ module cpu_top (
     logic flush_ID_EX;         // from flush_controller
     logic pc_redirect;
 
-    assign branch_taken = ex_mem_branch && ex_mem_zero_flag;
+    assign branch_taken = ex_mem_reg.branch && ex_mem_reg.zero_flag;
 
     // =========================================================================
     // IF stage
@@ -112,7 +112,7 @@ module cpu_top (
         .rst_n      (rst_n),
         .pc_en      (pc_en),
         .pc_redirect(pc_redirect),
-        .pc_branch  (ex_mem_branch_addr),
+        .pc_branch  (ex_mem_reg.branch_addr),
         .pc_current (pc_current)
     );
 
@@ -322,8 +322,8 @@ module cpu_top (
             id_ex_reg.rs1        <= if_id_reg.instr[19:15];
             id_ex_reg.rs2        <= if_id_reg.instr[24:20];
             id_ex_reg.rd         <= if_id_reg.instr[11:7];
-            id_ex_reg.funct3     <= id_ex_reg.funct3;
-            id_ex_reg.bit_30     <= id_ex_reg.bit_30;
+            id_ex_reg.funct3     <= if_id_reg.instr[14:12];
+            id_ex_reg.bit_30     <= if_id_reg.instr[30];
         end
     end
 
