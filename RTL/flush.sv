@@ -1,13 +1,8 @@
-import codes_pkg::WORD_WIDTH;
 module flush_controller (
-    input logic clk,
-    input logic rst_n,
-
+ 
     // From EX stage
     input logic branch_resolved,
     input logic branch_taken,
-    input logic [WORD_WIDTH-1:0] branch_target,
-    input logic [WORD_WIDTH-1:0] branch_addr,
     
     // From branch predictor
     input logic predicted_taken,

@@ -277,12 +277,8 @@ module cpu_top (
     );
 
     flush_controller u_flush (
-        .clk             (clk),
-        .rst_n           (rst_n),
         .branch_resolved (ex_mem_reg.branch),
         .branch_taken    (branch_taken),
-        .branch_target   (ex_mem_reg.branch_addr),
-        .branch_addr     (ex_mem_reg.branch_addr),
         .predicted_taken (predict_taken),
         .flush_IF_ID     (flush_IF_ID),
         .flush_ID_EX     (flush_ID_EX),
