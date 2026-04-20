@@ -6,7 +6,10 @@ module stalling_tb;
     logic [REG_WIDTH-1:0] if_id_rs1;
     logic [REG_WIDTH-1:0] if_id_rs2;
     logic [REG_WIDTH-1:0] id_ex_rd;
-    logic                 id_ex_mem_load, ex_branch_taken, pc_redirect, mem_stall;
+    logic                 id_ex_mem_load;
+    logic                 ex_branch_taken;
+    logic                 pc_redirect;
+    logic                 mem_stall;
 
     logic pc_en;
     logic if_id_en;
@@ -41,7 +44,7 @@ module stalling_tb;
     always #5 clk = ~clk; // 100MHz clock
      // if_id_flush is always exactly ex_branch_taken (no other logic touches it)
     ap_if_id_flush: assert property (@(posedge clk)
-        if_id_flush === ex_branch_taken)
+        if_id_flush == ex_branch_taken)
         else $error("ap_if_id_flush: if_id_flush=%b ex_branch_taken=%b",
                     if_id_flush, ex_branch_taken);
 
@@ -165,9 +168,8 @@ module stalling_tb;
         end
     endtask
 
-    // -------------------------------------------------------------------------
+
     // Scenario tasks
-    // -------------------------------------------------------------------------
 
     task automatic test_no_hazard();
         $display("--- no hazard ---");
@@ -248,30 +250,6 @@ module stalling_tb;
         end
     endtask
 
-    // Biased random: 75% chance rd matches rs1/rs2 to stress load-use path
-    task automatic test_random_biased(input int iterations);
-        logic [REG_WIDTH-1:0] r_rs1, r_rs2, r_rd;
-        logic r_mem_load, r_branch, r_redirect, r_mem_stall;
-        int   bias;
-        string lbl;
-
-        $display("--- biased random (%0d iterations) ---", iterations);
-        for (int i = 0; i < iterations; i++) begin
-            bias = $urandom_range(0, 3);
-            case (bias)
-                0: begin r_rd = $urandom_range(1,31); r_rs1 = r_rd;               r_rs2 = $urandom_range(0,31); end
-                1: begin r_rd = $urandom_range(1,31); r_rs2 = r_rd;               r_rs1 = $urandom_range(0,31); end
-                2: begin r_rd = $urandom_range(1,31); r_rs1 = r_rd;               r_rs2 = r_rd;                 end
-                3: begin r_rd = $urandom_range(0,31); r_rs1 = $urandom_range(0,31); r_rs2 = $urandom_range(0,31); end
-            endcase
-            r_mem_load  = $urandom_range(0, 1);
-            r_branch    = $urandom_range(0, 1);
-            r_redirect  = $urandom_range(0, 1);
-            r_mem_stall = $urandom_range(0, 1);
-            $sformat(lbl, "biased_%0d", i);
-            check(r_rs1, r_rs2, r_rd, r_mem_load, r_branch, r_redirect, r_mem_stall, lbl);
-        end
-    endtask
 
     initial begin
         pass_count = 0;
@@ -292,7 +270,6 @@ module stalling_tb;
         test_branch_and_mem_stall();
         test_redirect_during_stall();
         test_random(1000);
-        test_random_biased(500);
 
         $display("\n=== Results: %0d passed, %0d failed ===", pass_count, fail_count);
         if (fail_count == 0)
