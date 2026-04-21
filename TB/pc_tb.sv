@@ -48,8 +48,8 @@ import codes_pkg::WORD_WIDTH;
         old_pc = pc_current;
         pc_en = 1;
         pc_redirect = 0;
-        @(posedge clk);
-        assert(pc_current == old_pc + WORD_WIDTH'd4)
+        @(posedge clk); #1;
+        assert(pc_current == old_pc + 4)
             else $fatal("PC did not increment by 4: old=%0h new=%0h", old_pc, pc_current);
     endtask
 
@@ -60,7 +60,7 @@ import codes_pkg::WORD_WIDTH;
         pc_en = 0;
         pc_redirect = 0;
         repeat (2) begin
-            @(posedge clk);
+            @(posedge clk); #1;
             assert(pc_current == old_pc)
                 else $fatal("PC changed when enable was low: old=%0h new=%0h", old_pc, pc_current);
         end
@@ -74,7 +74,7 @@ import codes_pkg::WORD_WIDTH;
         old_pc = pc_current;
         pc_en = 1;
         pc_redirect = 1;
-        @(posedge clk);
+        @(posedge clk); #1;
         assert(pc_current == pc_branch)
             else $fatal("PC did not redirect to branch: expected=%0h, got=%0h", pc_branch, pc_current);
 
@@ -83,7 +83,7 @@ import codes_pkg::WORD_WIDTH;
         pc_branch = WORD_WIDTH'(32'h0000_0080);
         pc_en = 0;
         pc_redirect = 1;
-        @(posedge clk);
+        @(posedge clk); #1;
         assert(pc_current == old_pc)
             else $fatal("PC changed on redirect while enable was low: old=%0h new=%0h", old_pc, pc_current);
     endtask

@@ -9,10 +9,10 @@ module pc (
     output logic [WORD_WIDTH-1:0] pc_current
 );
     logic [WORD_WIDTH-1:0] pc_next;
-    assign pc_next = pc_redirect ? pc_branch : (pc_current + WORD_WIDTH'd4);
+    assign pc_next = pc_redirect ? pc_branch : (pc_current + 4);
 
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)       pc_current <= WORD_WIDTH'd0;
+        if (!rst_n)       pc_current <= '0;
         else if (pc_en)   pc_current <= pc_next;
     end
 endmodule

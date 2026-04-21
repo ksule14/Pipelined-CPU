@@ -37,4 +37,21 @@ module forwarding_tb;
         .forward_b(forward_b)
     );
 
+    int pass_count = 0;
+    int fail_count = 0;
+
     
+    task random_test();
+        begin
+            ex_rs1 = $urandom_range(0, 31);
+            ex_rs2 = $urandom_range(0, 31);
+            rd_mem = $urandom_range(0, 31);
+            rd_wb = $urandom_range(0, 31);
+            reg_write_mem = $urandom_range(0, 1);
+            ex_mem_is_load = $urandom_range(0, 1);
+            reg_write_wb = $urandom_range(0, 1);
+            #10;
+
+            
+
+        end
