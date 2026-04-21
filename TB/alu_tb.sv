@@ -1,3 +1,4 @@
+// DONE TESTING
 `timescale 1ns/1ps
 
 module alu_tb;
@@ -5,6 +6,7 @@ import codes_pkg::*;
 
 logic alu_src;
 alu_control control;
+logic [DATA_WIDTH-1:0] rs1_data, rs2_data, imm;
 logic [DATA_WIDTH-1:0] alu_result;
 logic zero_flag;
 
@@ -21,9 +23,9 @@ endclass
 alu_trans trans;
 
 alu dut (
-    .rs1_data(trans.rs1_data),
-    .rs2_data(trans.rs2_data),
-    .imm(trans.imm),
+    .rs1_data(rs1_data),
+    .rs2_data(rs2_data),
+    .imm(imm),
     .alu_src(alu_src),
     .control(control),
     .alu_result(alu_result),
@@ -39,95 +41,107 @@ or_op();
 slt();
 sltu();
 alu_src_test();
+
+$display("ALL TESTS PASSED!");
+$finish;
 end
 
 task automatic add();
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = ADD;
         #1;
         assert(alu_result == trans.rs1_data + trans.rs2_data) 
-        else($fatal("ADD failed: %0d + %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("ADD failed: %0d + %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic sub();
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = SUB;
         #1;
          assert(alu_result == trans.rs1_data - trans.rs2_data) 
-        else($fatal("SUB failed: %0d - %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("SUB failed: %0d - %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic and_op();
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = AND;
         #1;
          assert(alu_result == (trans.rs1_data & trans.rs2_data)) 
-        else($fatal("AND failed: %0d & %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("AND failed: %0d & %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic or_op();
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = OR;
         #1;
          assert(alu_result == (trans.rs1_data | trans.rs2_data)) 
-        else($fatal("OR failed: %0d | %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("OR failed: %0d | %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic slt();
     repeat(100) begin
         assert(trans.randomize() with {$signed(rs1_data) < $signed(rs2_data);}) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = SLT;
         #1;
          assert(alu_result == 1)
-        else($fatal("SLT failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("SLT failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 
     repeat(100) begin
         assert(trans.randomize() with {$signed(rs1_data) >= $signed(rs2_data);}) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = SLT;
         #1;
          assert(alu_result == 0)
-        else($fatal("SLT failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("SLT failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic sltu();
     repeat(100) begin
         assert(trans.randomize() with {rs1_data < rs2_data;}) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = SLTU;
         #1;
          assert(alu_result == 1)
-        else($fatal("SLTU failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("SLTU failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 
     repeat(100) begin
         assert(trans.randomize() with {rs1_data >= rs2_data;}) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = SLTU;
         #1;
          assert(alu_result == 0)
-        else($fatal("SLTU failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result));
+        else $fatal("SLTU failed: %0d < %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
     end
 endtask
 
 task automatic alu_src_test();
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 0;
         control = ADD;
         #1;
@@ -137,6 +151,7 @@ task automatic alu_src_test();
 
     repeat(100) begin
         assert(trans.randomize()) else $fatal("Randomization failed");
+        rs1_data = trans.rs1_data; rs2_data = trans.rs2_data; imm = trans.imm;
         alu_src = 1;
         control = ADD;
         #1;
@@ -148,23 +163,23 @@ endtask
 task automatic overflow_test();
     alu_src = 0;
     control = ADD;
-    trans.rs1_data = 32'hFFFFFFFF;
-    trans.rs2_data = 32'h1;
+    rs1_data = 32'hFFFFFFFF;
+    rs2_data = 32'h1;
     #1;
-    assert(alu_result == 32'h0) else $fatal("Overflow test failed: %0d + %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
+    assert(alu_result == 32'h0) else $fatal("Overflow test failed: %0d + %0d != %0d", rs1_data, rs2_data, alu_result);
 
     alu_src = 1;
     control = ADD;
-    trans.rs1_data = 32'h7FFFFFFF;
-    trans.imm = 32'hACDF5432;
+    rs1_data = 32'h7FFFFFFF;
+    imm = 32'hACDF5432;
     #1;
-    assert(alu_result == 32'h2ACDF5431) else $fatal("Overflow test failed: %0d + %0d != %0d", trans.rs1_data, trans.imm, alu_result);
+    assert(alu_result == 32'h2ACDF5431) else $fatal("Overflow test failed: %0d + %0d != %0d", rs1_data, imm, alu_result);
 
     alu_src = 0;
     control = SUB;
-    trans.rs1_data = 32'h0;
-    trans.rs2_data = 32'h1;
+    rs1_data = 32'h0;
+    rs2_data = 32'h1;
     #1;
-    assert(alu_result == 32'hFFFFFFFF) else $fatal("Overflow test failed: %0d - %0d != %0d", trans.rs1_data, trans.rs2_data, alu_result);
+    assert(alu_result == 32'hFFFFFFFF) else $fatal("Overflow test failed: %0d - %0d != %0d", rs1_data, rs2_data, alu_result);
 endtask
 endmodule
