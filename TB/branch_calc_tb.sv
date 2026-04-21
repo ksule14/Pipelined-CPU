@@ -1,3 +1,4 @@
+// DONE TESTING
 `timescale 1ns/1ps
 
 module branch_calc_tb;
@@ -6,7 +7,7 @@ module branch_calc_tb;
 
     logic [WORD_WIDTH-1:0] pc;
     logic [DATA_WIDTH-1:0] imm;
-    logic [WORD_WIDTH1:0] branch_addr;
+    logic [WORD_WIDTH-1:0] branch_addr;
 
     branch_calc dut (
         .pc(pc),
@@ -26,6 +27,9 @@ module branch_calc_tb;
         imm = 32'h0000_0008; // 8
         #1;
         assert(branch_addr == 32'h0000_0018) else $fatal("Test 2 failed: expected 0x0000_0018, got %h", branch_addr);
+
+        $display("ALL TESTS PASSED");
+        $finish;
     end
 endmodule
 

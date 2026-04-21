@@ -1,3 +1,4 @@
+// DONE TESTING
 `timescale 1ns/1ps
 
 module flush_tb;
