@@ -13,8 +13,6 @@ module ram (
 
     initial begin
         $readmemh("data_mem.hex", mem);
-        mem_bus.mem_ready = 0;
-        mem_bus.mem_write_done = 0;
     end
 
     always_ff @(posedge clk) begin
