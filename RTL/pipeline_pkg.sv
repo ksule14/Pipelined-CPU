@@ -2,11 +2,18 @@ package pipeline_pkg;
 import codes_pkg::DATA_WIDTH;
 import codes_pkg::WORD_WIDTH;
 
+// 5 pipeline stages used in this processor
+// the control signals are passed along to further stages until they are used up
+
+    // IF/ID stage
+    // sends pc and instruction
     typedef struct packed {
         logic [WORD_WIDTH-1:0] pc;
         logic [WORD_WIDTH-1:0] instr;
     } if_id_t;
 
+    // ID/EX stage
+    // instruction is decoded so everything must be sent to further stages
     typedef struct packed {
         logic [1:0]             alu_op;
         logic                   alu_src;
@@ -26,6 +33,8 @@ import codes_pkg::WORD_WIDTH;
         logic                   bit_30;
     } id_ex_t;
 
+    // EX/MEM stage
+    // alu-specific signals are used up here and not passed along
     typedef struct packed {
         logic                  branch;
         logic                  mem_read;
@@ -40,6 +49,9 @@ import codes_pkg::WORD_WIDTH;
         logic [4:0]            rd; 
     } ex_mem_t;
 
+    // MEM/WB stage
+    // memory-specific signals are used up here and not passed along
+    // processor goes back to IF/ID stage after this
     typedef struct packed {
         logic                  mem_to_reg;
         logic                  reg_write;

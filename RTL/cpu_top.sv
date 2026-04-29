@@ -96,7 +96,6 @@ module cpu_top (
     logic mem_wb_en;
     logic stall;
     logic id_ex_flush_stall;   // from stalling_u
-    logic if_id_flush_stall;   // from stalling_u
     logic flush_IF_ID;         // from flush_controller
     logic flush_ID_EX;         // from flush_controller
     logic pc_redirect;
@@ -160,14 +159,12 @@ module cpu_top (
         .if_id_rs2      (if_id_reg.instr[24:20]),
         .id_ex_mem_load (id_ex_reg.mem_read),
         .id_ex_rd       (id_ex_reg.rd),
-        .ex_branch_taken(branch_taken),
         .pc_redirect    (pc_redirect),
         .mem_stall      (mem_stall),
         .pc_en          (pc_en),
         .if_id_en       (if_id_en),
         .id_ex_en       (id_ex_en),
         .id_ex_flush    (id_ex_flush_stall),
-        .if_id_flush    (if_id_flush_stall),
         .ex_mem_en      (ex_mem_en),
         .mem_wb_en      (mem_wb_en),
         .stall          (stall)
@@ -289,7 +286,7 @@ module cpu_top (
     // IF/ID pipeline register
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n || flush_IF_ID || if_id_flush_stall) begin
+        if (!rst_n || flush_IF_ID) begin
             if_id_reg <= '0;
         end else if (if_id_en) begin
             if_id_reg.pc    <= pc_current;
