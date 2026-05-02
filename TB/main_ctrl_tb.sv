@@ -3,6 +3,7 @@
 
 module main_ctrl_tb;
     logic [6:0] opcode;
+    logic       prog_end;
     logic [1:0] alu_op;
     logic       branch;
     logic       mem_read;
@@ -10,10 +11,12 @@ module main_ctrl_tb;
     logic       mem_to_reg;
     logic       alu_src;
     logic       reg_write;
+    logic       prog_done;
     logic       error;
 
     main_control dut (
         .opcode(opcode),
+        .prog_end(prog_end),
         .alu_op(alu_op),
         .branch(branch),
         .mem_read(mem_read),
@@ -21,6 +24,7 @@ module main_ctrl_tb;
         .mem_to_reg(mem_to_reg),
         .alu_src(alu_src),
         .reg_write(reg_write),
+        .prog_done(prog_done),
         .error(error)
     );
 
@@ -39,6 +43,10 @@ module main_ctrl_tb;
 
         // Test BEQ opcode
         beq_opcode();
+
+        // Test program-end behavior
+        prog_end_non_branch();
+        prog_end_branch();
 
         // Test unsupported opcodes
         unsupported_opcode();
@@ -75,6 +83,7 @@ module main_ctrl_tb;
 
     task automatic load_opcode();
         opcode = 7'b0000011; // Load
+        prog_end = 1'b0;
         #1;
         assert(alu_op == 2'b00) else $fatal("Load: alu_op should be 00, got %b", alu_op);
         assert(mem_read == 1'b1) else $fatal("Load: mem_read should be 1, got %b", mem_read);
@@ -88,6 +97,7 @@ module main_ctrl_tb;
 
     task automatic store_opcode();
         opcode = 7'b0100011; // Store
+        prog_end = 1'b0;
         #1;
         assert(alu_op == 2'b00) else $fatal("Store: alu_op should be 00, got %b", alu_op);
         assert(mem_write == 1'b1) else $fatal("Store: mem_write should be 1, got %b", mem_write);
@@ -101,6 +111,7 @@ module main_ctrl_tb;
 
     task automatic beq_opcode();
         opcode = 7'b1100011; // BEQ
+        prog_end = 1'b0;
         #1;
         assert(alu_op == 2'b01) else $fatal("BEQ: alu_op should be 01, got %b", alu_op);
         assert(branch == 1'b1) else $fatal("BEQ: branch should be 1, got %0b", branch);
@@ -120,7 +131,22 @@ module main_ctrl_tb;
                (opc == 7'b1100011);   // BEQ
     endfunction
 
+    task automatic prog_end_non_branch();
+        opcode = 7'b0010011; // I-type
+        prog_end = 1'b1;
+        #1;
+        assert(prog_done == 1'b1) else $fatal("prog_done should be 1 for last non-branch instruction, got %b", prog_done);
+    endtask
+
+    task automatic prog_end_branch();
+        opcode = 7'b1100011; // BEQ
+        prog_end = 1'b1;
+        #1;
+        assert(prog_done == 1'b0) else $fatal("prog_done should be 0 for last branch instruction, got %b", prog_done);
+    endtask
+
     task automatic unsupported_opcode();
+        prog_end = 1'b0;
         repeat(100) begin
             do begin
                 opcode = $urandom_range(0, 127);

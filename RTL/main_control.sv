@@ -1,6 +1,7 @@
 // Main control unit for the core, generates control signals based on the opcode of the instruction.
 module main_control (
     input  logic [6:0] opcode, // 7 bit opcode from instruction. Determines the control signals
+    input  logic       prog_end, // high when this instruction is the last instruction in the program
     output logic [1:0] alu_op, // 2 bit signal sent to alu_control to determine type of instruction
     output logic       branch, // branch signal is high for branch instructions
     output logic       mem_read, // mem_read is high for load instructions
@@ -8,6 +9,7 @@ module main_control (
     output logic       mem_to_reg, // mem_to_reg is high for load instructions to select memory data to write back to reg file in wb stage
     output logic       alu_src, // high for means second operand comes from immediate, low means it comes from reg file (rs2) 
     output logic       reg_write, // high means data is written back to reg file, low means no write back
+    output logic       prog_done, // high immediately when the last instruction is non-branch
     output logic       error // error signal is high when an unsupported opcode is encountered
 );
     always_comb begin
@@ -46,5 +48,6 @@ module main_control (
             end
                 default: error = 1'b1; // unsupported opcode
         endcase
+        prog_done = prog_end && !branch;
     end
 endmodule

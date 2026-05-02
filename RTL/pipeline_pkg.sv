@@ -10,6 +10,7 @@ import codes_pkg::WORD_WIDTH;
     typedef struct packed {
         logic [WORD_WIDTH-1:0] pc;
         logic [WORD_WIDTH-1:0] instr;
+        logic                  prog_end;
     } if_id_t;
 
     // ID/EX stage
@@ -31,6 +32,7 @@ import codes_pkg::WORD_WIDTH;
         logic [4:0]             rd;
         logic [2:0]             funct3;
         logic                   bit_30;
+        logic                   prog_end;
     } id_ex_t;
 
     // EX/MEM stage
@@ -46,7 +48,8 @@ import codes_pkg::WORD_WIDTH;
         logic [DATA_WIDTH-1:0] rs2_data;
         logic [DATA_WIDTH-1:0] branch_addr;
         logic [DATA_WIDTH-1:0] pc;
-        logic [4:0]            rd; 
+        logic [4:0]            rd;
+        logic                  prog_end;
     } ex_mem_t;
 
     // MEM/WB stage

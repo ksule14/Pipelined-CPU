@@ -6,11 +6,15 @@ module instr_mem_tb;
 
     logic [WORD_WIDTH-1:0] addr;
     logic [WORD_WIDTH-1:0] instruction;
+    logic                  done;
     logic                  error;
 
-    instruction_mem dut (
+    instruction_mem #(
+        .PROGRAM_LENGTH(4)
+    ) dut (
         .addr(addr),
         .instruction(instruction),
+        .done(done),
         .error(error)
     );
 
@@ -32,6 +36,12 @@ module instr_mem_tb;
     addr = 20;
     #1;
     assert(instruction == 32'h00428103) else $fatal("Instruction mismatch at addr 20: expected 00428103, got %0h", instruction);
+    addr = 12;
+    #1;
+    assert(done == 1'b1) else $fatal("Expected done at last program instruction, got %b", done);
+    addr = 16;
+    #1;
+    assert(done == 1'b0) else $fatal("Expected done to be low before or after boundary, got %b", done);
     addr = 3;
     #1;
     assert(error == 1'b1) else $fatal("Expected error for unaligned address, got %b", error);

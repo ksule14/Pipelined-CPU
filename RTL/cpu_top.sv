@@ -2,10 +2,13 @@ import codes_pkg::*;
 import branch_fsm_pkg::*;
 import pipeline_pkg::*;
 
-module cpu_top (
+module cpu_top #(
+    parameter integer PROGRAM_LENGTH = DEPTH
+)(
     input  logic clk,
     input  logic rst_n,
-    output logic error
+    output logic error,
+    output logic prog_done
 );
 
     // =========================================================================
@@ -68,6 +71,16 @@ module cpu_top (
 
     cache_ram u_mem_bus();
     
+    // prog_done logic
+    logic                  imem_done;
+    logic                  prog_done_nb;
+    logic                  halt_request;
+    logic                  halt_gate;
+    logic                  halt_branch_request;
+    logic                  halt_branch_gate;
+    logic                  actual_pc_en;
+    logic                  actual_if_id_en;
+
     // =========================================================================
     // WB stage wires
     // =========================================================================
@@ -83,6 +96,9 @@ module cpu_top (
     logic cache_error;     // unaligned data access
 
     assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
+    assign prog_done = prog_done_nb || (ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken);
+    assign actual_pc_en = pc_en && ~halt_gate && ~halt_branch_gate;
+    assign actual_if_id_en = if_id_en && ~halt_gate && ~halt_branch_gate;
 
     // =========================================================================
     // Hazard / branch control wires
@@ -109,15 +125,18 @@ module cpu_top (
     pc u_pc (
         .clk        (clk),
         .rst_n      (rst_n),
-        .pc_en      (pc_en),
+        .pc_en      (actual_pc_en),
         .pc_redirect(pc_redirect),
         .pc_branch  (ex_mem_reg.branch_addr),
         .pc_current (pc_current)
     );
 
-    instruction_mem u_imem (
+    instruction_mem #(
+        .PROGRAM_LENGTH(PROGRAM_LENGTH)
+    ) u_imem (
         .addr       (pc_current),
         .instruction(if_instruction),
+        .done       (imem_done),
         .error      (imem_error)
     );
 
@@ -127,6 +146,7 @@ module cpu_top (
 
     main_control u_ctrl (
         .opcode    (if_id_reg.instr[6:0]),
+        .prog_end  (if_id_reg.prog_end),
         .alu_op    (id_alu_op),
         .branch    (id_branch),
         .mem_read  (id_mem_read),
@@ -134,6 +154,7 @@ module cpu_top (
         .mem_to_reg(id_mem_to_reg),
         .alu_src   (id_alu_src),
         .reg_write (id_reg_write),
+        .prog_done (prog_done_nb),
         .error     (ctrl_error)
     );
 
@@ -282,15 +303,30 @@ module cpu_top (
         .pc_redirect     (pc_redirect)
     );
 
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            halt_request        <= 1'b0;
+            halt_gate           <= 1'b0;
+            halt_branch_request <= 1'b0;
+            halt_branch_gate    <= 1'b0;
+        end else begin
+            halt_request        <= if_id_reg.prog_end && !id_branch;
+            halt_gate           <= halt_request;
+            halt_branch_request <= ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken;
+            halt_branch_gate    <= halt_branch_request;
+        end
+    end
+
     // =========================================================================
     // IF/ID pipeline register
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n || flush_IF_ID) begin
             if_id_reg <= '0;
-        end else if (if_id_en) begin
-            if_id_reg.pc    <= pc_current;
-            if_id_reg.instr <= if_instruction;
+        end else if (actual_if_id_en) begin
+            if_id_reg.pc      <= pc_current;
+            if_id_reg.instr   <= if_instruction;
+            if_id_reg.prog_end<= imem_done;
         end
     end
 
@@ -317,6 +353,7 @@ module cpu_top (
             id_ex_reg.rd         <= if_id_reg.instr[11:7];
             id_ex_reg.funct3     <= if_id_reg.instr[14:12];
             id_ex_reg.bit_30     <= if_id_reg.instr[30];
+            id_ex_reg.prog_end   <= if_id_reg.prog_end;
         end
     end
 
@@ -338,6 +375,7 @@ module cpu_top (
             ex_mem_reg.branch_addr <= ex_branch_addr;
             ex_mem_reg.pc          <= id_ex_reg.pc;
             ex_mem_reg.rd          <= id_ex_reg.rd;
+            ex_mem_reg.prog_end    <= id_ex_reg.prog_end;
         end
     end
 
