@@ -6,4 +6,5 @@ typedef enum logic [2:0] {
 parameter DATA_WIDTH = 32;
 parameter WORD_WIDTH = 32;
 parameter DEPTH = 256;
+parameter PROGRAM_LENGTH = 32;
 endpackage

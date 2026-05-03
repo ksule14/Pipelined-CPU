@@ -87,14 +87,3 @@ module cache #(parameter INDEX_BITS = 4) // 4 bits are used for cache addresses
             end
     end
 endmodule
-   
-
-
-
-
-    
-
-
-
-
-

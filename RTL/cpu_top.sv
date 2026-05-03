@@ -3,7 +3,7 @@ import branch_fsm_pkg::*;
 import pipeline_pkg::*;
 
 module cpu_top #(
-    parameter integer PROGRAM_LENGTH = DEPTH
+    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH
 )(
     input  logic clk,
     input  logic rst_n,
@@ -80,6 +80,7 @@ module cpu_top #(
     logic                  halt_branch_gate;
     logic                  actual_pc_en;
     logic                  actual_if_id_en;
+    logic [DATA_WIDTH-1:0] redirect_target;
 
     // =========================================================================
     // WB stage wires
@@ -96,7 +97,10 @@ module cpu_top #(
     logic cache_error;     // unaligned data access
 
     assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
-    assign prog_done = prog_done_nb || (ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken);
+    assign redirect_target = branch_taken ? ex_mem_reg.branch_addr : (ex_mem_reg.pc + 4);
+    assign prog_done = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
+                     || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
+                     || (ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken);
     assign actual_pc_en = pc_en && ~halt_gate && ~halt_branch_gate;
     assign actual_if_id_en = if_id_en && ~halt_gate && ~halt_branch_gate;
 
@@ -127,7 +131,7 @@ module cpu_top #(
         .rst_n      (rst_n),
         .pc_en      (actual_pc_en),
         .pc_redirect(pc_redirect),
-        .pc_branch  (ex_mem_reg.branch_addr),
+        .pc_branch  (redirect_target),
         .pc_current (pc_current)
     );
 
@@ -264,7 +268,6 @@ module cpu_top #(
 
     ram u_ram (
         .clk       (clk),
-        .rst_n     (rst_n),
         .write_data(ex_mem_reg.rs2_data),
         .mem_bus   (u_mem_bus.ram)
     );
@@ -322,7 +325,9 @@ module cpu_top #(
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n || flush_IF_ID) begin
-            if_id_reg <= '0;
+            if_id_reg.pc       <= '0;
+            if_id_reg.instr    <= 32'h00000013; // NOP (ADDI x0,x0,0): valid opcode prevents false ctrl_error on reset/flush
+            if_id_reg.prog_end <= 1'b0;
         end else if (actual_if_id_en) begin
             if_id_reg.pc      <= pc_current;
             if_id_reg.instr   <= if_instruction;

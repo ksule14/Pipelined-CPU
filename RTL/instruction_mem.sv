@@ -5,7 +5,7 @@ import codes_pkg::DEPTH;
 // based on the address provided by the PC.
 // Initialized with the contents of instr_mem.hex, which is a hex file containing the instructions of the program
 module instruction_mem #(
-    parameter integer PROGRAM_LENGTH = DEPTH
+    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH
 ) (
     // address input from the PC
     input  logic [WORD_WIDTH-1:0] addr,
@@ -29,8 +29,8 @@ module instruction_mem #(
     // Address from PC counts in bytes, (+4 every time) but the IM counts in words(instructions)
     // One word = 4 bytes so value of the address is divided by 4 to get the correct index in the IM array
     assign instr_index = addr[WORD_WIDTH-1:2];
-    assign instruction = (instr_index < DEPTH) ? instr_mem[instr_index] : 32'h00000013; // NOP beyond valid memory
+    assign instruction = (instr_index < PROGRAM_LENGTH) ? instr_mem[instr_index] : 32'h00000013; // NOP beyond valid memory
     assign done        = (instr_index == PROGRAM_LENGTH - 1);
     // When address is not a multiple of 4, the last 2 bits are not 00, so error signal is high to indicate unaligned fetch.
-    assign error       = (addr[1:0] != 2'b00) || (instr_index >= DEPTH);
+    assign error       = (addr[1:0] != 2'b00);
 endmodule
