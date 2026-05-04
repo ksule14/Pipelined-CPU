@@ -1,5 +1,5 @@
 module sync_fifo #(
-    paramter FIFO_WIDTH = 8,
+    parameter FIFO_WIDTH = 8,
     parameter FIFO_DEPTH = 8
 )(
     input logic                  clk,
@@ -10,7 +10,7 @@ module sync_fifo #(
     output logic                 fifo_full,
     //READ side
     input logic                  fifo_read_en,
-    input logic [FIFO_WIDTH-1:0] fifo_data_out,
+    output logic [FIFO_WIDTH-1:0] fifo_data_out,
     output logic                 fifo_empty
 );
     // FIFO array
@@ -18,7 +18,7 @@ module sync_fifo #(
 
     logic [$clog2(FIFO_DEPTH)-1:0] wr_ptr;
     logic [$clog2(FIFO_DEPTH)-1:0] rd_ptr;
-    logic [$clog2(DEPTH+1)-1:0] count;
+    logic [$clog2(FIFO_DEPTH+1)-1:0] count;
 
     // status flags
     assign fifo_full = (count == FIFO_DEPTH); // full when count reaches full depth

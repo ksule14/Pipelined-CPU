@@ -40,21 +40,37 @@ module uart_ctrl #(
         end
     end
 
+    typedef enum logic [1:0] {IDLE, WAIT_DATA, SEND} state_t;
+    state_t state;
+
     // Read FIFO to send data from FIFO to UART TX
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             fifo_read_en <= 0;
             tx_start <= 0;
             tx_data <= 0;
+            state <= IDLE;
         end else begin
-            fifo_read_en <= 0; // default
+            fifo_read_en <= 0;
             tx_start <= 0;
 
-            if (!fifo_empty && !tx_busy) begin
-                fifo_read_en <= 1;
-                tx_data <= fifo_dout;
-                tx_start <= 1; // one cycle pulse
-            end
+            case (state)
+                IDLE: begin
+                    if (!fifo_empty && !tx_busy) begin
+                        fifo_read_en <= 1;
+                        state <= WAIT_DATA;
+                    end
+                end
+                WAIT_DATA: begin
+                    tx_data  <= fifo_data_out;
+                    tx_start <= 1;
+                    state <= SEND;
+                end
+                SEND: begin
+                    if (!tx_busy)
+                        state <= IDLE;
+                end
+            endcase
         end
     end
 endmodule
