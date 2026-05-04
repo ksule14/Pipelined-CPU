@@ -40,7 +40,7 @@ module uart_ctrl #(
         end
     end
 
-    typedef enum logic [1:0] {IDLE, WAIT_DATA, SEND} state_t;
+    typedef enum logic [1:0] {IDLE, WAIT_DATA, WAIT_DONE, SEND} state_t;
     state_t state;
 
     // Read FIFO to send data from FIFO to UART TX
@@ -64,7 +64,11 @@ module uart_ctrl #(
                 WAIT_DATA: begin
                     tx_data  <= fifo_data_out;
                     tx_start <= 1;
-                    state <= SEND;
+                    state <= WAIT_DONE;
+                end
+                WAIT_DONE: begin
+                    if (tx_busy)
+                        state <= SEND;
                 end
                 SEND: begin
                     if (!tx_busy)
