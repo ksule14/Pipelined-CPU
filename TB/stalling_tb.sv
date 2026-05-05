@@ -1,4 +1,3 @@
-// DONE TESTING
 `timescale 1ns/1ps
 
 module stalling_tb;
@@ -10,6 +9,7 @@ module stalling_tb;
     logic                 id_ex_mem_load;
     logic                 pc_redirect;
     logic                 mem_stall;
+    logic                 uart_stall;
 
     logic pc_en;
     logic if_id_en;
@@ -28,6 +28,7 @@ module stalling_tb;
         .id_ex_rd(id_ex_rd),
         .pc_redirect(pc_redirect),
         .mem_stall(mem_stall),
+        .uart_stall(uart_stall),
         .pc_en(pc_en),
         .if_id_en(if_id_en),
         .id_ex_en(id_ex_en),
@@ -69,8 +70,21 @@ module stalling_tb;
 
     // x0 destination must never trigger a load-use stall on its own
     ap_no_x0_hazard: assert property (@(posedge clk)
-        (id_ex_rd == '0) |-> (!stall || mem_stall))
+        (id_ex_rd == '0) |-> (!stall || mem_stall || uart_stall))
         else $error("ap_no_x0_hazard: rd=x0 must never cause a load-use stall");
+
+    // UART FIFO full: same full-pipeline freeze as cache-miss
+    ap_uart_stall_id_ex_en: assert property (@(posedge clk)
+        uart_stall |-> !id_ex_en)
+        else $error("ap_uart_stall_id_ex_en: id_ex_en must be 0 during uart_stall");
+
+    ap_uart_stall_ex_mem_en: assert property (@(posedge clk)
+        uart_stall |-> !ex_mem_en)
+        else $error("ap_uart_stall_ex_mem_en: ex_mem_en must be 0 during uart_stall");
+
+    ap_uart_stall_mem_wb_en: assert property (@(posedge clk)
+        uart_stall |-> !mem_wb_en)
+        else $error("ap_uart_stall_mem_wb_en: mem_wb_en must be 0 during uart_stall");
 
     // -------------------------------------------------------------------------
     // Core checker task: drive inputs, compute expected, assert each output
@@ -78,20 +92,23 @@ module stalling_tb;
     task automatic check(
         input logic [REG_WIDTH-1:0] rs1, rs2, rd,
         input logic                 mem_load, redirect, mem_stall_in,
-        input string                label
+        input string                label,
+        input logic                 uart_stall_in = 1'b0
     );
         logic load_use;
+        logic pipe_freeze;
         logic exp_stall, exp_pc_en, exp_if_id_en, exp_id_ex_en;
         logic exp_id_ex_flush, exp_ex_mem_en, exp_mem_wb_en;
 
         load_use        = mem_load && (rd != '0) && ((rd == rs1) || (rd == rs2));
-        exp_stall       = load_use || mem_stall_in;
+        pipe_freeze     = mem_stall_in || uart_stall_in;
+        exp_stall       = load_use || pipe_freeze;
         exp_pc_en       = redirect || ~exp_stall;
         exp_if_id_en    = ~exp_stall;
-        exp_id_ex_en    = ~mem_stall_in;
-        exp_id_ex_flush = load_use && !mem_stall_in;
-        exp_ex_mem_en   = ~mem_stall_in;
-        exp_mem_wb_en   = ~mem_stall_in;
+        exp_id_ex_en    = ~pipe_freeze;
+        exp_id_ex_flush = load_use && !pipe_freeze;
+        exp_ex_mem_en   = ~pipe_freeze;
+        exp_mem_wb_en   = ~pipe_freeze;
 
         if_id_rs1      = rs1;
         if_id_rs2      = rs2;
@@ -99,6 +116,7 @@ module stalling_tb;
         id_ex_mem_load = mem_load;
         pc_redirect    = redirect;
         mem_stall      = mem_stall_in;
+        uart_stall     = uart_stall_in;
         #1;
 
         assert (stall == exp_stall)
@@ -194,22 +212,36 @@ module stalling_tb;
         check(5'd1, 5'd2, 5'd3, 0, 1, 1, "redirect_overrides_mem_stall");
     endtask
 
+    // UART FIFO full: freezes entire pipeline, no flush; identical behaviour to mem_stall
+    task automatic test_uart_stall();
+        $display("--- uart_stall ---");
+        // Basic FIFO-full freeze with no other hazards
+        check(5'd1, 5'd2, 5'd3, 0, 0, 0, "uart_stall_only",                     1);
+        // load-use flush must be suppressed when pipe_freeze is high
+        check(5'd5, 5'd2, 5'd5, 1, 0, 0, "uart_stall_suppresses_load_use_flush", 1);
+        // mem_stall and uart_stall both asserted simultaneously
+        check(5'd1, 5'd2, 5'd3, 0, 0, 1, "mem_and_uart_stall",                   1);
+        // pc_redirect must still override pc_en even during uart_stall
+        check(5'd1, 5'd2, 5'd3, 0, 1, 0, "redirect_overrides_uart_stall",         1);
+    endtask
+
     // Uniform random: full input space
     task automatic test_random(input int iterations);
         logic [REG_WIDTH-1:0] r_rs1, r_rs2, r_rd;
-        logic r_mem_load, r_redirect, r_mem_stall;
+        logic r_mem_load, r_redirect, r_mem_stall, r_uart_stall;
         string lbl;
 
         $display("--- randomized (%0d iterations) ---", iterations);
         for (int i = 0; i < iterations; i++) begin
-            r_rs1       = $urandom_range(0, 2**REG_WIDTH - 1);
-            r_rs2       = $urandom_range(0, 2**REG_WIDTH - 1);
-            r_rd        = $urandom_range(0, 2**REG_WIDTH - 1);
-            r_mem_load  = $urandom_range(0, 1);
-            r_redirect  = $urandom_range(0, 1);
-            r_mem_stall = $urandom_range(0, 1);
+            r_rs1        = $urandom_range(0, 2**REG_WIDTH - 1);
+            r_rs2        = $urandom_range(0, 2**REG_WIDTH - 1);
+            r_rd         = $urandom_range(0, 2**REG_WIDTH - 1);
+            r_mem_load   = $urandom_range(0, 1);
+            r_redirect   = $urandom_range(0, 1);
+            r_mem_stall  = $urandom_range(0, 1);
+            r_uart_stall = $urandom_range(0, 1);
             $sformat(lbl, "rand_%0d", i);
-            check(r_rs1, r_rs2, r_rd, r_mem_load, r_redirect, r_mem_stall, lbl);
+            check(r_rs1, r_rs2, r_rd, r_mem_load, r_redirect, r_mem_stall, lbl, r_uart_stall);
         end
     endtask
 
@@ -220,7 +252,7 @@ module stalling_tb;
 
         // Initialise to quiescent state before concurrent assertions start sampling
         if_id_rs1 = '0; if_id_rs2 = '0; id_ex_rd = '0;
-        id_ex_mem_load = 0; pc_redirect = 0; mem_stall = 0;
+        id_ex_mem_load = 0; pc_redirect = 0; mem_stall = 0; uart_stall = 0;
         @(posedge clk);
 
         test_no_hazard();
@@ -229,6 +261,7 @@ module stalling_tb;
         test_load_use_both();
         test_mem_stall();
         test_redirect_during_stall();
+        test_uart_stall();
         test_random(1000);
 
         $display("\n=== Results: %0d passed, %0d failed ===", pass_count, fail_count);

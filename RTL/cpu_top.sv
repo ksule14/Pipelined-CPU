@@ -8,7 +8,8 @@ module cpu_top #(
     input  logic clk,
     input  logic rst_n,
     output logic error,
-    output logic prog_done
+    output logic prog_done,
+    output logic tx_serial
 );
 
     // =========================================================================
@@ -70,6 +71,19 @@ module cpu_top #(
     logic                  mem_stall;
 
     cache_ram u_mem_bus();
+
+    // UART interconnect
+    logic                  uart_store;
+    logic                  uart_stall;
+    logic                  fifo_full;
+    logic                  fifo_write_en;
+    logic [7:0]            fifo_data_in;
+    logic [7:0]            fifo_data_out;
+    logic                  fifo_read_en;
+    logic                  fifo_empty;
+    logic [7:0]            uart_tx_data;
+    logic                  uart_tx_start;
+    logic                  uart_tx_busy;
     
     // prog_done logic
     logic                  imem_done;
@@ -96,7 +110,11 @@ module cpu_top #(
     logic imem_error;      // unaligned instruction fetch
     logic cache_error;     // unaligned data access
 
+    localparam logic [31:0] UART_ADDR = 32'd1_000_000;
+
     assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
+    assign uart_store = ex_mem_reg.mem_write && (ex_mem_reg.alu_result == UART_ADDR);
+    assign uart_stall = uart_store && fifo_full;
     assign redirect_target = branch_taken ? ex_mem_reg.branch_addr : (ex_mem_reg.pc + 4);
     assign prog_done = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
                      || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
@@ -186,6 +204,7 @@ module cpu_top #(
         .id_ex_rd       (id_ex_reg.rd),
         .pc_redirect    (pc_redirect),
         .mem_stall      (mem_stall),
+        .uart_stall     (uart_stall),
         .pc_en          (pc_en),
         .if_id_en       (if_id_en),
         .id_ex_en       (id_ex_en),
@@ -259,7 +278,7 @@ module cpu_top #(
         .addr         (ex_mem_reg.alu_result),
         .write_data   (ex_mem_reg.rs2_data),
         .read_en      (ex_mem_reg.mem_read),
-        .write_en     (ex_mem_reg.mem_write),
+        .write_en     (ex_mem_reg.mem_write && !uart_store),
         .cache_stall  (mem_stall),
         .read_data    (mem_read_data),
         .error        (cache_error),
@@ -270,6 +289,45 @@ module cpu_top #(
         .clk       (clk),
         .write_data(ex_mem_reg.rs2_data),
         .mem_bus   (u_mem_bus.ram)
+    );
+
+    sync_fifo u_uart_fifo (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .fifo_write_en(fifo_write_en),
+        .fifo_data_in (fifo_data_in),
+        .fifo_full    (fifo_full),
+        .fifo_read_en (fifo_read_en),
+        .fifo_data_out(fifo_data_out),
+        .fifo_empty   (fifo_empty)
+    );
+
+    uart_ctrl #(
+        .UART_ADDR(UART_ADDR)
+    ) u_uart (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .mem_addr     (ex_mem_reg.alu_result),
+        .write_data   (ex_mem_reg.rs2_data),
+        .mem_write    (ex_mem_reg.mem_write),
+        .fifo_full    (fifo_full),
+        .fifo_write_en(fifo_write_en),
+        .fifo_data_in (fifo_data_in),
+        .fifo_data_out(fifo_data_out),
+        .fifo_read_en (fifo_read_en),
+        .fifo_empty   (fifo_empty),
+        .tx_data      (uart_tx_data),
+        .tx_start     (uart_tx_start),
+        .tx_busy      (uart_tx_busy)
+    );
+
+    tx u_tx (
+        .clk      (clk),
+        .rst_n    (rst_n),
+        .tx_data  (uart_tx_data),
+        .tx_start (uart_tx_start),
+        .tx_busy  (uart_tx_busy),
+        .tx_serial(tx_serial)
     );
 
     // =========================================================================

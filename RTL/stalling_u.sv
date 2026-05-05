@@ -14,6 +14,9 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 	// Cache miss stall input
 	input logic                 mem_stall, // high if there is a cache miss
 
+	// UART FIFO full stall input
+	input logic                 uart_stall, // high when SW targets UART addr and FIFO is full
+
 	// Stall/flush outputs
 	output logic                pc_en, // normally freezes pc during stall, but lets PC redirect even mid-stall
 									   // so correct branch is captured immediately
@@ -27,23 +30,25 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 );
 
 	logic load_use_hazard;
+	logic pipe_freeze; // any stall that requires the full pipeline to hold (no flushes)
 
 	always_comb begin
 		// load use hazard is when the EX/MEM instruction is load and ID/EX instruction writes the same register
 		load_use_hazard = id_ex_mem_load && (id_ex_rd != '0) &&
 						  ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2));
 
-		stall = load_use_hazard || mem_stall;
+		pipe_freeze = mem_stall || uart_stall;
+		stall = load_use_hazard || pipe_freeze;
 
 		// On any stall: freeze fetch/decode
 		pc_en      = pc_redirect || ~stall;
 		if_id_en   = ~stall;
-		id_ex_flush = load_use_hazard && !mem_stall;
-		// On cache miss: freeze entire pipeline (hold all registers, no flushes)
+		id_ex_flush = load_use_hazard && !pipe_freeze;
+		// On cache miss or UART FIFO full: freeze entire pipeline (hold all registers, no flushes)
 		// On load-use:   only freeze fetch/decode, flush ID/EX to insert bubble
-		id_ex_en   = ~mem_stall;
-		ex_mem_en  = ~mem_stall;
-		mem_wb_en  = ~mem_stall;
+		id_ex_en   = ~pipe_freeze;
+		ex_mem_en  = ~pipe_freeze;
+		mem_wb_en  = ~pipe_freeze;
 
 	end
 endmodule
