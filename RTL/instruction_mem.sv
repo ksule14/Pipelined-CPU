@@ -23,7 +23,7 @@ module instruction_mem #(
 
     initial begin
         // loads the IM with the instructions from the hex file
-        $readmemh("instr_mem.hex", instr_mem);
+        $readmemh("uart_instr.hex", instr_mem);
     end
 
     // Address from PC counts in bytes, (+4 every time) but the IM counts in words(instructions)
