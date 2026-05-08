@@ -3,7 +3,7 @@ import codes_pkg::DATA_WIDTH;
 
 module uart_ctrl #(
     parameter TX_WIDTH = 8, 
-    parameter UART_ADDR = 32'h1000_000)(
+    parameter UART_ADDR = 32'd1024)(
     input logic                  clk,
     input logic                  rst_n,
     // CPU interface

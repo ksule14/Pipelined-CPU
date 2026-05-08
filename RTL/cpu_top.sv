@@ -110,7 +110,7 @@ module cpu_top #(
     logic imem_error;      // unaligned instruction fetch
     logic cache_error;     // unaligned data access
 
-    localparam logic [31:0] UART_ADDR = 32'd1_000_000;
+    localparam logic [31:0] UART_ADDR = 32'd1024;
 
     assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
     assign uart_store = ex_mem_reg.mem_write && (ex_mem_reg.alu_result == UART_ADDR);
