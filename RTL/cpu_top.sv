@@ -92,6 +92,9 @@ module cpu_top #(
     logic                  halt_gate;
     logic                  halt_branch_request;
     logic                  halt_branch_gate;
+    logic                  prog_end_seen;
+    logic                  prog_done_pulse;
+    logic                  prog_done_held;
     logic                  actual_pc_en;
     logic                  actual_if_id_en;
     logic [DATA_WIDTH-1:0] redirect_target;
@@ -112,15 +115,7 @@ module cpu_top #(
 
     localparam logic [31:0] UART_ADDR = 32'd1024;
 
-    assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
-    assign uart_store = ex_mem_reg.mem_write && (ex_mem_reg.alu_result == UART_ADDR);
-    assign uart_stall = uart_store && fifo_full;
-    assign redirect_target = branch_taken ? ex_mem_reg.branch_addr : (ex_mem_reg.pc + 4);
-    assign prog_done = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
-                     || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
-                     || (ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken);
-    assign actual_pc_en = pc_en && ~halt_gate && ~halt_branch_gate;
-    assign actual_if_id_en = if_id_en && ~halt_gate && ~halt_branch_gate;
+    
 
     // =========================================================================
     // Hazard / branch control wires
@@ -137,8 +132,6 @@ module cpu_top #(
     logic flush_IF_ID;         // from flush_controller
     logic flush_ID_EX;         // from flush_controller
     logic pc_redirect;
-
-    assign branch_taken = ex_mem_reg.branch && ex_mem_reg.zero_flag;
 
     // =========================================================================
     // IF stage
@@ -358,7 +351,7 @@ module cpu_top #(
     flush_controller u_flush (
         .branch_resolved (ex_mem_reg.branch),
         .branch_taken    (branch_taken),
-        .predicted_taken (predict_taken),
+        .predicted_taken (ex_mem_reg.predict_taken),
         .flush_IF_ID     (flush_IF_ID),
         .flush_ID_EX     (flush_ID_EX),
         .pc_redirect     (pc_redirect)
@@ -370,11 +363,14 @@ module cpu_top #(
             halt_gate           <= 1'b0;
             halt_branch_request <= 1'b0;
             halt_branch_gate    <= 1'b0;
+            prog_end_seen       <= 1'b0;
         end else begin
             halt_request        <= if_id_reg.prog_end && !id_branch;
             halt_gate           <= halt_request;
             halt_branch_request <= ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken;
             halt_branch_gate    <= halt_branch_request;
+            if (if_id_reg.prog_end)
+                prog_end_seen   <= 1'b1;
         end
     end
 
@@ -383,19 +379,29 @@ module cpu_top #(
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        if_id_reg.pc       <= '0;
-        if_id_reg.instr    <= 32'h00000013; // NOP
-        if_id_reg.prog_end <= 1'b0;
+        if_id_reg.pc            <= '0;
+        if_id_reg.instr         <= 32'h00000013; // NOP
+        if_id_reg.prog_end      <= 1'b0;
+        if_id_reg.predict_taken <= 1'b0;
     end else begin
         // Move the flush inside the synchronous 'else' block
         if (flush_IF_ID) begin
-            if_id_reg.pc       <= '0;
-            if_id_reg.instr    <= 32'h00000013;
-            if_id_reg.prog_end <= 1'b0;
+            if_id_reg.pc            <= '0;
+            if_id_reg.instr         <= 32'h00000013;
+            if_id_reg.prog_end      <= 1'b0;
+            if_id_reg.predict_taken <= 1'b0;
         end else if (actual_if_id_en) begin
-            if_id_reg.pc       <= pc_current;
-            if_id_reg.instr    <= if_instruction;
-            if_id_reg.prog_end <= imem_done;
+            if_id_reg.pc            <= pc_current;
+            if_id_reg.instr         <= if_instruction;
+            if_id_reg.prog_end      <= imem_done;
+            if_id_reg.predict_taken <= predict_taken;
+        end else if (prog_end_seen && id_ex_en) begin
+            // Last instruction has advanced into ID/EX; clear IF/ID to NOP so it
+            // cannot re-dispatch if the pipeline later unstalls (e.g. after uart_stall).
+            if_id_reg.pc            <= '0;
+            if_id_reg.instr         <= 32'h00000013;
+            if_id_reg.prog_end      <= 1'b0;
+            if_id_reg.predict_taken <= 1'b0;
         end
     end
 end
@@ -427,9 +433,10 @@ always_ff @(posedge clk or negedge rst_n) begin
             id_ex_reg.rs1        <= if_id_reg.instr[19:15];
             id_ex_reg.rs2        <= if_id_reg.instr[24:20];
             id_ex_reg.rd         <= if_id_reg.instr[11:7];
-            id_ex_reg.funct3     <= if_id_reg.instr[14:12];
-            id_ex_reg.bit_30     <= if_id_reg.instr[30];
-            id_ex_reg.prog_end   <= if_id_reg.prog_end;
+            id_ex_reg.funct3        <= if_id_reg.instr[14:12];
+            id_ex_reg.bit_30        <= if_id_reg.instr[30];
+            id_ex_reg.prog_end      <= if_id_reg.prog_end;
+            id_ex_reg.predict_taken <= if_id_reg.predict_taken;
         end
     end
 end
@@ -450,9 +457,10 @@ end
             ex_mem_reg.zero_flag   <= ex_zero_flag;
             ex_mem_reg.rs2_data    <= ex_alu_b_pre;
             ex_mem_reg.branch_addr <= ex_branch_addr;
-            ex_mem_reg.pc          <= id_ex_reg.pc;
-            ex_mem_reg.rd          <= id_ex_reg.rd;
-            ex_mem_reg.prog_end    <= id_ex_reg.prog_end;
+            ex_mem_reg.pc            <= id_ex_reg.pc;
+            ex_mem_reg.rd            <= id_ex_reg.rd;
+            ex_mem_reg.prog_end      <= id_ex_reg.prog_end;
+            ex_mem_reg.predict_taken <= id_ex_reg.predict_taken;
         end
     end
 
@@ -470,5 +478,28 @@ end
             mem_wb_reg.rd         <= ex_mem_reg.rd;
         end
     end
+
+    assign branch_taken = ex_mem_reg.branch && ex_mem_reg.zero_flag;
+
+    assign error = ctrl_error | immgen_error | aluctrl_error | imem_error | cache_error;
+    assign uart_store = ex_mem_reg.mem_write && (ex_mem_reg.alu_result == UART_ADDR);
+    assign uart_stall = uart_store && fifo_full;
+    assign redirect_target = branch_taken ? ex_mem_reg.branch_addr : (ex_mem_reg.pc + 4);
+
+    // prog_done_pulse is high for the 1-2 cycles when the last instruction is at the
+    // appropriate stage. prog_done_held latches that pulse so the output stays asserted
+    // for the rest of the run — required to drive a board LED visibly.
+    assign prog_done_pulse = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
+                           || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
+                           || (ex_mem_reg.prog_end && ex_mem_reg.branch);
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)               prog_done_held <= 1'b0;
+        else if (prog_done_pulse) prog_done_held <= 1'b1;
+    end
+
+    assign prog_done = prog_done_pulse | prog_done_held;
+    assign actual_pc_en    = pc_en    && ~halt_gate && ~halt_branch_gate && ~prog_end_seen;
+    assign actual_if_id_en = if_id_en && ~halt_gate && ~halt_branch_gate && ~prog_end_seen;
 
 endmodule

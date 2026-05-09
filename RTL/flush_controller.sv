@@ -12,14 +12,13 @@ module flush_controller (
     output logic flush_ID_EX,
     output logic pc_redirect
 );
-    logic mispredicted;
-
-    // incorrect branch prediction is when branch is resolved and prediction does not match real result
-    assign mispredicted = branch_resolved && (branch_taken != predicted_taken);
-    // flushing and pc redirect occurs on mispredict, as everything that has been processed after the misprediction
-    // is garbage and needs to be cleared
-    assign flush_IF_ID = mispredicted;
-    assign flush_ID_EX = mispredicted;
-    assign pc_redirect = mispredicted;
+    // This design always fetches PC+4 (no speculative redirect in the fetch stage).
+    // Therefore a taken branch always requires a flush and redirect, regardless of
+    // what the predictor said.  A not-taken branch only needs a flush when the
+    // predictor incorrectly said "taken" (predicted_taken=1, branch_taken=0).
+    // Combined: flush whenever branch_taken OR predicted_taken is true.
+    assign flush_IF_ID = branch_resolved && (branch_taken || predicted_taken);
+    assign flush_ID_EX = branch_resolved && (branch_taken || predicted_taken);
+    assign pc_redirect  = branch_resolved && (branch_taken || predicted_taken);
 
 endmodule

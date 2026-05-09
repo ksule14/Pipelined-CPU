@@ -21,15 +21,17 @@ module sync_fifo #(
     logic [$clog2(FIFO_DEPTH+1)-1:0] count;
 
     // status flags
-    assign fifo_full = (count == FIFO_DEPTH); // full when count reaches full depth
-    assign fifo_empty = (count == 0); // empty when count is at beginning
+    assign fifo_full     = (count == FIFO_DEPTH);
+    assign fifo_empty    = (count == 0);
+    // combinational read: data is available the same cycle fifo_read_en is seen,
+    // so uart_ctrl can latch it in WAIT_DATA without an extra pipeline bubble
+    assign fifo_data_out = fifo[rd_ptr];
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             wr_ptr <= 0;
             rd_ptr <= 0;
-            count <= 0;
-            fifo_data_out <= 0;
+            count  <= 0;
         end else begin
             // WRITE
             if (fifo_write_en && !fifo_full) begin
@@ -37,16 +39,15 @@ module sync_fifo #(
                 wr_ptr <= wr_ptr + 1;
             end
 
-            // READ
+            // READ — only advance the pointer; data is read combinationally above
             if (fifo_read_en && !fifo_empty) begin
-                fifo_data_out <= fifo[rd_ptr];
                 rd_ptr <= rd_ptr + 1;
             end
 
             // COUNT UPDATE
             case ({(fifo_write_en && !fifo_full),(fifo_read_en && !fifo_empty)})
                 2'b10: count <= count + 1;
-                2'b01: count <= count -1;
+                2'b01: count <= count - 1;
                 default: count <= count;
             endcase
         end
