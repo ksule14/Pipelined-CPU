@@ -382,22 +382,35 @@ module cpu_top #(
     // IF/ID pipeline register
     // =========================================================================
     always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n || flush_IF_ID) begin
+    if (!rst_n) begin
+        if_id_reg.pc       <= '0;
+        if_id_reg.instr    <= 32'h00000013; // NOP
+        if_id_reg.prog_end <= 1'b0;
+    end else begin
+        // Move the flush inside the synchronous 'else' block
+        if (flush_IF_ID) begin
             if_id_reg.pc       <= '0;
-            if_id_reg.instr    <= 32'h00000013; // NOP (ADDI x0,x0,0): valid opcode prevents false ctrl_error on reset/flush
+            if_id_reg.instr    <= 32'h00000013;
             if_id_reg.prog_end <= 1'b0;
         end else if (actual_if_id_en) begin
-            if_id_reg.pc      <= pc_current;
-            if_id_reg.instr   <= if_instruction;
-            if_id_reg.prog_end<= imem_done;
+            if_id_reg.pc       <= pc_current;
+            if_id_reg.instr    <= if_instruction;
+            if_id_reg.prog_end <= imem_done;
         end
     end
+end
 
     // =========================================================================
     // ID/EX pipeline register
     // =========================================================================
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n || id_ex_flush_stall || flush_ID_EX) begin
+    // ID/EX pipeline register
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        // Only the hardware reset is asynchronous
+        id_ex_reg <= '0;
+    end else begin
+        // Everything below is synchronous to the clock edge
+        if (id_ex_flush_stall || flush_ID_EX) begin
             id_ex_reg <= '0;
         end else if (id_ex_en) begin
             id_ex_reg.alu_op     <= id_alu_op;
@@ -419,6 +432,7 @@ module cpu_top #(
             id_ex_reg.prog_end   <= if_id_reg.prog_end;
         end
     end
+end
 
     // =========================================================================
     // EX/MEM pipeline register
