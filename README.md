@@ -1,4 +1,5 @@
 # 5-Stage Pipelined RISC-V CPU with Cache and UART
+This is a simple 5-stage pipelined RiSC-V CPU with one-level memory hierarchy and UART interfacing to a display terminal.
 
 ## Overview
 
