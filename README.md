@@ -1,32 +1,47 @@
-# Pipelined RISC-V CPU
-This is my first personal project, a CPU based on the RISC-V architecture capable of arithmetic, load/store, and branch instructions. Specifically, this CPU is capable of ADD, SUB, AND, OR, SLT, SLTU, ADDI, LD, SD, and BEQ instructions.
-## Architecture
-This CPU is currently a single cycle CPU. Once the single cycle version is finished, I plan on pipelining it to improve throughput. The pipelining will break the CPU into fetch, decode, excute, and memory access stages. The write back stage is broken up across the memory access and decode stages.
+# 5-Stage Pipelined RISC-V CPU with Cache and UART
+This is a simple 5-stage pipelined RiSC-V CPU with one-level memory hierarchy and UART interfacing to a display terminal.
 
-### Main Control
-The main control unit receives the instruction opcode (bits 6-0) and controls the muxes throughout the CPU. Based on the opcode, the main control determines the instruction type and sets the select lines accordingly. To handle the BEQ instruction, the main control outputs a branch signal and takes in a zero flag as input from the ALU. When the branch signal and zero flag are high, the pc_src signal is high which feeds the address calculated by the ALU to the PC. The main control unit also provides input to the alu control unit, telling it what instruction type is being executed.
+Languages/Tools: SystemVerilog, Vivado 2025.2, AMD Urbana board with Spartan-7 FPGA.
 
-### Program Counter
-The program counter increments by 4 bytes on every rising clock edge. The only excpetion is on branch instructions, where it jumps to the calculated branch address.
+## Overview
+This project is a functional 32-bit RISC-V processor implemented in SystemVerilog and synthesized on the AMD Urbana board with Spartan-7 FPGA. The design implements a classic 5-stage pipeline (IF → ID → EX → MEM → WB) with hazard resolution. A forwarding unit eliminates most data hazards, a stall controller handles load-use delays, and a 2-bit dynamic branch predictor with a 16-entry Pattern History Table reduces control hazard penalties by predicting branch outcomes before they resolve. A direct-mapped write-through cache sits between the pipeline and data memory, stalling the pipeline on misses. A UART interface is mapped into the address space, allowing the processor to transmit output over serial. The design is verified through transaction-based SystemVerilog testbenches that compare against golden reference models using scoreboards and SV assertions. 
+## Architecture Diagram
 
-### Instruction Memory
-The instruction memory (IM) is an array 32 bits wide and 8 bits deep, meaning it can hold up to 256 32-bit instructions. The program instructions are baked into the IM with a hex file, sequentially filling the IM. The IM receives the address from the PC and right shifts by 2. The IM then outputs the corresponding instruction.
+## Key Features
+1. 4 main pipeline registers (IF/ID, ID/EX, EX/MEM, MEM/WB) that carry data across components
+2. Forwarding Unit: Used to avoid data hazards by immediately sending data from the ALU to previous stages before WB occurs.
+3. Stalling Unit: Stalls the pipeline when forwarding is not enough such as in load-use hazards or when the UART FIFO is full to prevent data loss.
+4. Dynamic Branch Predictor: 4 state branch predictor (SNT, WNT, WT, ST) that is used to predict branch results in advance to avoid stalling.
+5. Cache: L1 Cache one memory hierarchy above RAM that utilizes index and tag bits to identify data. Cache and RAM are in synch with write-through logic.
+6. Flush Controller: Flushes and injects NOP into pipeline registers on branch misprediction to clear garbage instructions and redirect PC.
+7. UART: Connects processor to serial terminal using synchronous FIFO and UART TX module at 115200 baud.
 
-### Register File
-The register file is an array 64 bits wide and 5 bits deep, meaning it holds 32 64-bit registers. The register file receives instruction bits corresponding to rs1, rs2, and rd and outputs the data in rs1 and rs2. The register file is written using the reg_write control signal and the data is written to rd. Register 0 is hardcoded to the value zero to allow easy register loading using ADDI.
+## Pipeline Stages
 
-### Immediate Generator
-The immediate generator takes the entire 32-bit instruction as an input, and depend on the instruction type, pieces together the 12 bit immediate from various fields of the instruction and sign extends it to 64 bits.
+## Hazard Handling
 
-### ALU Control
-The ALU control receives input from the main control and determines what instruction type is being performed. The ALU control first generalizes the instruction as either arithmetic, load/store, or branch and based on this, directs the ALU to perform the approriate operation. If the instruction is arithmetic, the ALU control further specifies what exact operation is to be performed.
-### ALU
-The ALU takes rs1 and either rs2 or the immediate as inputs. Based on the input from ALU control, the ALU performs a specific operation. This ALU is capable of ADD, SUB, bitwise AND, bitwise OR, SLT, and SLTU operations.
-### Data Memory
-The Data memory (DM) has a read and write signal. If the read signal is high, the DM provides the data at the address supplied by the ALU. If the write signal is high, the data contained in rs2 is written to the DM at the address supplied by the ALU.
-## Codes Package
-The codes package defines parameters and data types used across files. Parameters include Data width, word width and depth. 
+## Cache
 
-## Testbenches
-The testbenches are mostly composed of a transaction class, golden model, and scoreboard. Data inputs are randomized and simulations are conducted on EDA Playground. The golden model calculates an ideal value for each set of randomized inputs. The scoreboard compares the golden model output to that of the DUT and outputs an error message when there is a mismatch. The ALU specifically uses SystemVerilog assertions to test specific instruction types.
+## UART Interface
+The UART interface transmits serial data to a terminal to display text. The interface is made up of a UART controller, synchronous FIFO, and TX module. When a store instruction has destination 1024 in memory, the processor redirects that data to the UART controller instead of RAM/cache. The UART controller writes to the FIFO with data from the processor when the FIFO is not full and sends data to the TX module by reading from the FIFO when the FIFO is not empty. The FIFO is synchronous because it operates on the same clock as the processor. Full flag is high when write pointer = depth of FIFO. Empty flag is high when read pointer = write pointer. The TX module is an FSM that sends the starting bit (0), then the 8-bit serial data, and then the stop bit (1). There is an additional state in the FSM that delays it for one cycle for stability. The clock runs at 100MHz and the baud rate is 115200 which equates to about 868 cycles per bit. The tx_busy signal is high while a counter counts to 868 for each bit being sent.  
+## Verification
+
+## Supported Instructions
+| Instruction | Type | Description |
+| ----------- | ---- | ----------- |
+| add rd, rs1, rs2 | R    | Stores sum of rs1, rs2 in rd |
+| sub rd, rs1, rs2 | R    | Stores difference of rs1, rs2 in rd |
+| and rd, rs1, rs2 | R    | Stores bitwise AND of rs1, rs2 in rd |
+| or rd, rs1, rs2 | R     | Stores bitwise OR of rs1, rs2 in rd |
+| slt rd, rs1, rs2 | R    | Stores signed comparision rs1 < rs2 in rd |
+| sltu rd, rs1, rs2 | R   | Stores unsigned comparison rs1 < rs2 in rd |
+| addi rd, r1, imm | I    | Stores sum of rs1, imm in rd |
+| lw  rd, offset(rs1) | I | loads data from memory address (offset + rs1) into rd |
+| sw rs2, offset(rs1) | S | stores data from rs2 into memory address (offset + rs1) |
+| beq rs1, rs2 offset | B | compares rs1, rs2 and jumps to PC + offset if equal |
+
+## Tools and Synthesis
+Avoid errors by using Vivado 2025.2.
+Project written entirely in SystemVerilog.
+To use, open a Vivado project and add RTL and COMM files as design sources and set cpu_top.sv as top module. Also include data_mem.hex and uart_instr.hex as memory initialization files to load instruction memory with program and RAM with zeros. Program to run can be changed at any time by changing the file the instruction memory accesses in instruction_mem.sv. Use Urbana.xdc as constraint file. Synthesize, run implementation, generate bistream, and program device to run program. If running a program that utilizes UART interface, ensure a serial terminal is open and configured to 115200 baud.
 
