@@ -46,11 +46,11 @@ Data Hazards — Forwarding
   the ALU inputs:
 
   
-  │ forward_a/b │                  Source                   |
+  | forward_a/b | Source |
   | ----------- | ----------------------------------------- |
-  │ 2'b10       │ EX/MEM pipeline register (one cycle old)  │
-  │ 2'b01       │ MEM/WB pipeline register (two cycles old) │
-  │ 2'b00       │ Register file                             │
+  | 2'b10       | EX/MEM pipeline register (one cycle old)  |
+  | 2'b01       | MEM/WB pipeline register (two cycles old) |
+  | 2'b00       | Register file                             |
 
 
   MEM-stage forwarding takes priority over WB-stage forwarding when both match.
