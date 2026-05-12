@@ -12,7 +12,7 @@ module tx #(
     output logic                 tx_serial // output pin
 );
 
-    typedef enum logic [2:0] {
+    typedef enum logic [2:0] { // FSM for different states of UART protocol
         IDLE, TX_START, TX_DATA, TX_STOP, CLEANUP
     } state_t;
 
@@ -28,7 +28,7 @@ module tx #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
-            tx_serial <= 1; // high one IDLE
+            tx_serial <= 1; // high on IDLE
             clk_count <= 0;
             bit_index <= 0;
             data_reg <= 0;
@@ -40,7 +40,7 @@ module tx #(
                 bit_index <= 0;
 
                 if (tx_start) begin
-                    data_reg <= tx_data;
+                    data_reg <= tx_data; // load latched data
                     state <= TX_START;
                 end
             end
@@ -54,16 +54,16 @@ module tx #(
                     state <= TX_DATA;
                 end
             end
-            // Send 8 bits (LSB first)
+            // Send 8 data bits
             TX_DATA: begin
-                tx_serial <= data_reg[bit_index];
+                tx_serial <= data_reg[bit_index]; // sends LSB first
 
                 if (clk_count < CLKS_PER_BIT-1) begin
                     clk_count <= clk_count + 1;
                 end else begin
                     clk_count <= 0;
                     if (bit_index < (TX_WIDTH-1)) begin
-                        bit_index <= bit_index + 1;
+                        bit_index <= bit_index + 1; // bit index increases on every count reset
                     end else begin
                         bit_index <= 0;
                         state <= TX_STOP;

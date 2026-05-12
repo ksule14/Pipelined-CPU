@@ -34,13 +34,13 @@ module uart_ctrl #(
             fifo_write_en <= 0; // default
 
             if (mem_write && mem_addr == UART_ADDR && !fifo_full) begin
-            fifo_data_in <= write_data[TX_WIDTH-1:0];
+            fifo_data_in <= write_data[TX_WIDTH-1:0]; // Only takes last 8 bits of data for UART
             fifo_write_en <= 1;
             end
         end
     end
 
-    typedef enum logic [1:0] {IDLE, WAIT_DATA, WAIT_DONE, SEND} state_t;
+    typedef enum logic [1:0] {IDLE, WAIT_DATA, WAIT_DONE, SEND} state_t; // FSM for reading from FIFO and sending to TX
     state_t state;
 
     // Read FIFO to send data from FIFO to UART TX
@@ -58,21 +58,21 @@ module uart_ctrl #(
                 IDLE: begin
                     if (!fifo_empty && !tx_busy) begin
                         fifo_read_en <= 1;
-                        state <= WAIT_DATA;
+                        state <= WAIT_DATA; // read enable is high for one cycle
                     end
                 end
                 WAIT_DATA: begin
-                    tx_data  <= fifo_data_out;
-                    tx_start <= 1;
+                    tx_data  <= fifo_data_out; // latch data from FIFO to ensure stability
+                    tx_start <= 1; // send start signal to TX to initiate data transfer
                     state <= WAIT_DONE;
                 end
                 WAIT_DONE: begin
                     if (tx_busy)
-                        state <= SEND;
+                        state <= SEND; // when TX acknowledges start signal by going busy, move to SEND state
                 end
                 SEND: begin
                     if (!tx_busy)
-                        state <= IDLE;
+                        state <= IDLE; // once TX finishes sending return to IDLE
                 end
             endcase
         end

@@ -9,7 +9,7 @@ module cache #(parameter INDEX_BITS = 4) // 4 bits are used for cache addresses
     input logic rst_n, // active-low reset
     input logic [WORD_WIDTH-1:0] addr, // PC address of instruction, split into index and tag bits
     input logic [DATA_WIDTH-1:0] write_data, // data to be written to cache and ram
-    input logic read_en, // read enable that trigges cache lookup
+    input logic read_en, // read enable that triggers cache lookup
     input logic write_en, // write enable that triggers write-through
     output logic cache_stall, // high when cache is busy or during mem fetch. Sent to stalling unit to stall pipeline
 
