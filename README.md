@@ -45,15 +45,13 @@ Data Hazards — Forwarding
   Most data hazards are resolved without stalling by the forwarding unit. It compares the source registers of the instruction in EX (rs1, rs2) against the destination registers of instructions in MEM and WB. When a match is found and the downstream instruction writes to a register (reg_write asserted), the forwarding unit muxes the result directly into
   the ALU inputs:
 
-  ┌─────────────┬───────────────────────────────────────────┐
-  │ forward_a/b │                  Source                   │
-  ├─────────────┼───────────────────────────────────────────┤
+  
+  │ forward_a/b │                  Source                   |
+  | ----------- | ----------------------------------------- |
   │ 2'b10       │ EX/MEM pipeline register (one cycle old)  │
-  ├─────────────┼───────────────────────────────────────────┤
   │ 2'b01       │ MEM/WB pipeline register (two cycles old) │
-  ├─────────────┼───────────────────────────────────────────┤
   │ 2'b00       │ Register file                             │
-  └─────────────┴───────────────────────────────────────────┘
+
 
   MEM-stage forwarding takes priority over WB-stage forwarding when both match.
 
