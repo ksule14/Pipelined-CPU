@@ -8,6 +8,7 @@ This project is a functional 32-bit RISC-V processor implemented in SystemVerilo
 ## Architecture Diagram
 <img width="965" height="539" alt="Screenshot 2026-05-17 124917" src="https://github.com/user-attachments/assets/58dd094c-194d-4674-b9d0-85267ee5c060" />
 
+Blue are control signals. Black is data and secondary signals like enables
 ## Key Features
 1. 4 main pipeline registers (IF/ID, ID/EX, EX/MEM, MEM/WB) that carry data across components
 2. Forwarding Unit: Used to avoid data hazards by immediately sending data from the ALU to previous stages before WB occurs.
@@ -105,3 +106,6 @@ Project written entirely in SystemVerilog and verified using EDAPlayground Aldec
 To use, open a Vivado project and add RTL and COMM files as design sources and set cpu_top.sv as top module. Also include data_mem.hex and uart_instr.hex as memory initialization files to load instruction memory with program and RAM with zeros. Program to run can be changed at any time by changing the file the instruction memory accesses in instruction_mem.sv. Use Urbana.xdc as constraint file. Synthesize, run implementation, generate bistream, and program device to run program. If running a program that utilizes UART interface, ensure a serial terminal is open and configured to 115200 baud.
 
 ## Video of "hello world" program
+https://github.com/user-attachments/assets/d8c287d3-29bd-4691-927a-067fedcbdb0f
+
+Video displays "hello world" on putty terminal when active-low reset is high.
