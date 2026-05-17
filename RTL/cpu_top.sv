@@ -204,7 +204,6 @@ module cpu_top #(
         .id_ex_flush    (id_ex_flush_stall),
         .ex_mem_en      (ex_mem_en),
         .mem_wb_en      (mem_wb_en),
-        .stall          (stall)
     );
 
     // =========================================================================
@@ -488,7 +487,7 @@ end
 
     // prog_done_pulse is high for the 1-2 cycles when the last instruction is at the
     // appropriate stage. prog_done_held latches that pulse so the output stays asserted
-    // for the rest of the run — required to drive a board LED visibly.
+    // for the rest of the run. Required to drive a board LED visibly.
     assign prog_done_pulse = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
                            || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
                            || (ex_mem_reg.prog_end && ex_mem_reg.branch);

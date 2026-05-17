@@ -26,9 +26,9 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 
 	output logic                ex_mem_en, // freezes EX/MEM during cache miss
 	output logic                mem_wb_en, // freezes MEM/WB during cache miss
-	output logic                stall // high during cache miss or load-use hazard
 );
 
+	logic stall // high during cache miss or load-use hazard
 	logic load_use_hazard;
 	logic pipe_freeze; // any stall that requires the full pipeline to hold (no flushes)
 
