@@ -25,7 +25,7 @@ module stalling_u #(parameter REG_WIDTH = 5) (
 	output logic                id_ex_flush, // clears ID/EX to inject bubble on load-use hazard. not high on mem stall because data is still valid
 
 	output logic                ex_mem_en, // freezes EX/MEM during cache miss
-	output logic                mem_wb_en, // freezes MEM/WB during cache miss
+	output logic                mem_wb_en // freezes MEM/WB during cache miss
 );
 
 	logic stall // high during cache miss or load-use hazard
