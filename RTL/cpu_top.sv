@@ -203,7 +203,7 @@ module cpu_top #(
         .id_ex_en       (id_ex_en),
         .id_ex_flush    (id_ex_flush_stall),
         .ex_mem_en      (ex_mem_en),
-        .mem_wb_en      (mem_wb_en),
+        .mem_wb_en      (mem_wb_en)
     );
 
     // =========================================================================
