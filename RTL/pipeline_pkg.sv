@@ -12,6 +12,7 @@ import codes_pkg::WORD_WIDTH;
         logic [WORD_WIDTH-1:0] instr;
         logic                  prog_end;
         logic                  predict_taken;
+        logic                  spec_taken; // high if a validated BTB hit redirected fetch to this instruction's predicted target
     } if_id_t;
 
     // ID/EX stage
@@ -35,6 +36,7 @@ import codes_pkg::WORD_WIDTH;
         logic                   bit_30;
         logic                   prog_end;
         logic                   predict_taken;
+        logic                   spec_taken;
     } id_ex_t;
 
     // EX/MEM stage
@@ -53,6 +55,7 @@ import codes_pkg::WORD_WIDTH;
         logic [4:0]            rd;
         logic                  prog_end;
         logic                  predict_taken;
+        logic                  spec_taken;
     } ex_mem_t;
 
     // MEM/WB stage

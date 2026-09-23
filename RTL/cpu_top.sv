@@ -123,6 +123,9 @@ module cpu_top #(
     // =========================================================================
     logic branch_taken;
     logic predict_taken;
+    logic [DATA_WIDTH-1:0] predict_target;   // BTB's remembered target for the instruction currently being fetched
+    logic                  btb_hit;          // tag-validated BTB hit for the instruction currently being fetched
+    logic                  spec_taken;       // predict_taken && btb_hit: fetch is speculatively redirecting this cycle
     logic pc_en;
     logic if_id_en;
     logic id_ex_en;
@@ -139,13 +142,20 @@ module cpu_top #(
     // =========================================================================
 
     pc u_pc (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .pc_en      (actual_pc_en),
-        .pc_redirect(pc_redirect),
-        .pc_branch  (redirect_target),
-        .pc_current (pc_current)
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .pc_en        (actual_pc_en),
+        .pc_redirect  (pc_redirect),
+        .pc_branch    (redirect_target),
+        .spec_redirect(spec_taken),
+        .spec_target  (predict_target),
+        .pc_current   (pc_current)
     );
+
+    // spec_taken gates the BTB's predicted target behind a tag-validated hit, so a non-branch
+    // instruction that merely aliases some other branch's PHT/BTB index can never trigger a
+    // speculative redirect (see branch_predictor.sv's btb_hit for why the tag makes this safe).
+    assign spec_taken = predict_taken && btb_hit;
 
     instruction_mem #(
         .PROGRAM_LENGTH(PROGRAM_LENGTH),
@@ -340,19 +350,22 @@ module cpu_top #(
     // =========================================================================
 
     branch_predictor u_bpred (
-        .clk          (clk),
-        .rst_n        (rst_n),
-        .pc_fetch     (pc_current),
-        .predict_taken(predict_taken),
-        .update_en    (ex_mem_reg.branch),
-        .update_pc    (ex_mem_reg.pc),
-        .actual_taken (branch_taken)
+        .clk           (clk),
+        .rst_n         (rst_n),
+        .pc_fetch      (pc_current),
+        .predict_taken (predict_taken),
+        .predict_target(predict_target),
+        .btb_hit       (btb_hit),
+        .update_en     (ex_mem_reg.branch),
+        .update_pc     (ex_mem_reg.pc),
+        .actual_taken  (branch_taken),
+        .update_target (ex_mem_reg.branch_addr)
     );
 
     flush_controller u_flush (
         .branch_resolved (ex_mem_reg.branch),
         .branch_taken    (branch_taken),
-        .predicted_taken (ex_mem_reg.predict_taken),
+        .spec_taken      (ex_mem_reg.spec_taken),
         .flush_IF_ID     (flush_IF_ID),
         .flush_ID_EX     (flush_ID_EX),
         .pc_redirect     (pc_redirect)
@@ -367,12 +380,13 @@ module cpu_top #(
             prog_end_seen       <= 1'b0;
         end else begin
             // Triggered off ex_mem_reg.prog_end rather than if_id_reg.prog_end:
-            // this design always fetches PC+4 with no speculative redirect, so
-            // if the final instruction sits right after a loop-back branch it
-            // gets fetched into IF/ID on every iteration, not just the last.
-            // ex_mem_reg.prog_end can only go high once that fetch has survived
-            // flush_IF_ID and flush_ID_EX without being squashed, so it can't
-            // be set by a speculative fetch that the branch goes on to flush.
+            // if the final instruction sits right after a loop-back branch, it
+            // still gets speculatively fetched into IF/ID on every iteration
+            // where the BTB hasn't validated that branch's target yet (e.g. the
+            // very first iteration, before the BTB has learned it). ex_mem_reg.
+            // prog_end can only go high once that fetch has survived flush_IF_ID
+            // and flush_ID_EX without being squashed, so it can't be set by a
+            // speculative fetch that the branch goes on to flush.
             halt_request        <= ex_mem_reg.prog_end && !ex_mem_reg.branch;
             halt_gate           <= halt_request;
             halt_branch_request <= ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken;
@@ -391,6 +405,7 @@ module cpu_top #(
         if_id_reg.instr         <= 32'h00000013; // NOP
         if_id_reg.prog_end      <= 1'b0;
         if_id_reg.predict_taken <= 1'b0;
+        if_id_reg.spec_taken    <= 1'b0;
     end else begin
         // Move the flush inside the synchronous 'else' block
         if (flush_IF_ID) begin
@@ -398,11 +413,13 @@ module cpu_top #(
             if_id_reg.instr         <= 32'h00000013;
             if_id_reg.prog_end      <= 1'b0;
             if_id_reg.predict_taken <= 1'b0;
+            if_id_reg.spec_taken    <= 1'b0;
         end else if (actual_if_id_en) begin
             if_id_reg.pc            <= pc_current;
             if_id_reg.instr         <= if_instruction;
             if_id_reg.prog_end      <= imem_done;
             if_id_reg.predict_taken <= predict_taken;
+            if_id_reg.spec_taken    <= spec_taken;
         end else if (prog_end_seen && id_ex_en) begin
             // Last instruction has advanced into ID/EX; clear IF/ID to NOP so it
             // cannot re-dispatch if the pipeline later unstalls (e.g. after uart_stall).
@@ -410,6 +427,7 @@ module cpu_top #(
             if_id_reg.instr         <= 32'h00000013;
             if_id_reg.prog_end      <= 1'b0;
             if_id_reg.predict_taken <= 1'b0;
+            if_id_reg.spec_taken    <= 1'b0;
         end
     end
 end
@@ -445,6 +463,7 @@ always_ff @(posedge clk or negedge rst_n) begin
             id_ex_reg.bit_30        <= if_id_reg.instr[30];
             id_ex_reg.prog_end      <= if_id_reg.prog_end;
             id_ex_reg.predict_taken <= if_id_reg.predict_taken;
+            id_ex_reg.spec_taken    <= if_id_reg.spec_taken;
         end
     end
 end
@@ -480,6 +499,7 @@ end
                 ex_mem_reg.rd            <= id_ex_reg.rd;
                 ex_mem_reg.prog_end      <= id_ex_reg.prog_end;
                 ex_mem_reg.predict_taken <= id_ex_reg.predict_taken;
+                ex_mem_reg.spec_taken    <= id_ex_reg.spec_taken;
             end
         end
     end

@@ -11,18 +11,26 @@ module b_predict_tb;
     logic rst_n;
     logic [DATA_WIDTH-1:0] pc_fetch;
     logic predict_taken;
+    logic [DATA_WIDTH-1:0] predict_target;
+    logic btb_hit;
     logic update_en;
     logic [DATA_WIDTH-1:0] update_pc;
     logic actual_taken;
+    logic [DATA_WIDTH-1:0] update_target;
 
     int pass_count, fail_count;
 
     branch_state exp_PHT [0:ENTRIES-1]; // shadow model of the predictor
+    logic [DATA_WIDTH-1:0] exp_BTB_target [0:ENTRIES-1]; // shadow model of the BTB target
+    logic [DATA_WIDTH-1:0] exp_BTB_pc     [0:ENTRIES-1]; // last PC that wrote each BTB entry (for tag comparison)
+    logic                  exp_BTB_valid  [0:ENTRIES-1];
 
     branch_predictor #(.INDEX_BITS(INDEX_BITS)) dut (
         .clk(clk), .rst_n(rst_n),
         .pc_fetch(pc_fetch), .predict_taken(predict_taken),
-        .update_en(update_en), .update_pc(update_pc), .actual_taken(actual_taken)
+        .predict_target(predict_target), .btb_hit(btb_hit),
+        .update_en(update_en), .update_pc(update_pc), .actual_taken(actual_taken),
+        .update_target(update_target)
     );
 
     always #5 clk = ~clk;
@@ -96,18 +104,25 @@ module b_predict_tb;
         end
     endtask
 
-    // Apply one update, advance one clock, then update the shadow model
+    // Apply one update, advance one clock, then update the shadow model.
+    // target defaults to a value derived from pc so callers that don't care
+    // about the BTB still get a distinctive, repeatable target to compare.
     task automatic apply_update(
         input logic [DATA_WIDTH-1:0] pc,
-        input logic taken
+        input logic taken,
+        input logic [DATA_WIDTH-1:0] target = pc + 32'h100
     );
         logic [INDEX_BITS-1:0] idx;
-        idx          = pc_to_idx(pc);
-        update_en    = 1;
-        update_pc    = pc;
-        actual_taken = taken;
+        idx           = pc_to_idx(pc);
+        update_en     = 1;
+        update_pc     = pc;
+        actual_taken  = taken;
+        update_target = target;
         @(posedge clk); #1;
-        exp_PHT[idx] = nxt(exp_PHT[idx], taken);
+        exp_PHT[idx]        = nxt(exp_PHT[idx], taken);
+        exp_BTB_target[idx] = target;
+        exp_BTB_pc[idx]     = pc;
+        exp_BTB_valid[idx]  = 1'b1;
         update_en    = 0;
     endtask
 
@@ -122,6 +137,37 @@ module b_predict_tb;
         @(posedge clk); #1;
     endtask
 
+    // Check predict_target/btb_hit for a given fetch PC against the shadow BTB model.
+    // A tag mismatch (same index, different upper PC bits) must report btb_hit=0
+    // even if some other PC previously wrote a valid entry at that index -- this is
+    // exactly the aliasing case the tag exists to catch.
+    task automatic check_btb(
+        input logic [DATA_WIDTH-1:0] pc,
+        input string label
+    );
+        logic [INDEX_BITS-1:0] idx;
+        logic exp_hit;
+        idx      = pc_to_idx(pc);
+        exp_hit  = exp_BTB_valid[idx] && (exp_BTB_pc[idx][DATA_WIDTH-1:INDEX_BITS+2] == pc[DATA_WIDTH-1:INDEX_BITS+2]);
+        pc_fetch = pc;
+        update_en = 0;
+        #1;
+        assert (btb_hit == exp_hit)
+            pass_count++;
+        else begin
+            fail_count++;
+            $error("[%s] btb_hit: got %b, exp %b (idx=%0d)", label, btb_hit, exp_hit, idx);
+        end
+        if (exp_hit) begin
+            assert (predict_target == exp_BTB_target[idx])
+                pass_count++;
+            else begin
+                fail_count++;
+                $error("[%s] predict_target: got %h, exp %h (idx=%0d)", label, predict_target, exp_BTB_target[idx], idx);
+            end
+        end
+    endtask
+
     // Reset DUT and re-initialise shadow model
     task automatic do_reset();
         rst_n        = 0;
@@ -129,9 +175,13 @@ module b_predict_tb;
         pc_fetch     = '0;
         update_pc    = '0;
         actual_taken = 0;
+        update_target = '0;
         @(posedge clk); @(posedge clk);
         rst_n = 1;
-        for (int i = 0; i < ENTRIES; i++) exp_PHT[i] = WEAK_NOT_TAKEN;
+        for (int i = 0; i < ENTRIES; i++) begin
+            exp_PHT[i]       = WEAK_NOT_TAKEN;
+            exp_BTB_valid[i] = 1'b0;
+        end
         @(posedge clk);
     endtask
 
@@ -240,6 +290,46 @@ module b_predict_tb;
         check_pred(pc_a, "alias_pred_via_a"); // same entry → predict 0 again
     endtask
 
+    // A branch that has never resolved must report btb_hit=0 (cold BTB entry) --
+    // this is what keeps spec_taken from ever firing before the target is learned.
+    task automatic test_btb_cold_miss();
+        $display("--- BTB: cold miss before any update ---");
+        do_reset();
+        check_btb(idx_to_pc(4'd3), "btb_cold");
+    endtask
+
+    // After one resolution, the BTB must report a hit with the correct target
+    // for that exact PC, and must keep reporting it on repeated fetches.
+    task automatic test_btb_learns_target();
+        logic [DATA_WIDTH-1:0] pc;
+        $display("--- BTB: learns target after one update ---");
+        do_reset();
+        pc = idx_to_pc(4'd5);
+        check_btb(pc, "btb_learn_before");
+        apply_update(pc, 1'b1, pc + 32'h40);
+        check_btb(pc, "btb_learn_after");
+        check_btb(pc, "btb_learn_after_repeat");
+    endtask
+
+    // Two PCs that alias to the same PHT index (matching [5:2] bits, differing
+    // upper bits) must NOT share a BTB hit: the tag must catch the aliasing that
+    // the untagged direction predictor cannot. This is the exact mechanism that
+    // keeps a non-branch instruction from ever being wrongly redirected off of
+    // some other branch's stale index.
+    task automatic test_btb_tag_mismatch();
+        logic [DATA_WIDTH-1:0] pc_a, pc_b;
+        $display("--- BTB: tag mismatch on aliased index ---");
+        do_reset();
+        pc_a = idx_to_pc(4'd9);
+        pc_b = pc_a | 32'h0000_0040; // bit[6] set; pc_b[5:2] still = 9, upper bits differ
+        apply_update(pc_a, 1'b1, pc_a + 32'h200); // learn a target for pc_a only
+        check_btb(pc_a, "btb_tag_hit_original");   // pc_a: tag matches -> hit
+        check_btb(pc_b, "btb_tag_miss_aliased");   // pc_b: same index, different tag -> miss despite valid entry
+        // and PHT direction IS shared (documented, pre-existing aliasing limitation)
+        // even though the BTB correctly refuses to hand out a target for it:
+        check_pred(pc_b, "btb_tag_miss_pht_still_aliases");
+    endtask
+
     // update_en=0: DUT must ignore update signals even if they look valid
     task automatic test_update_disabled();
         $display("--- update disabled ---");
@@ -306,6 +396,9 @@ module b_predict_tb;
         test_prediction_flip();
         test_entry_independence();
         test_alias();
+        test_btb_cold_miss();
+        test_btb_learns_target();
+        test_btb_tag_mismatch();
         test_update_disabled();
         test_mid_sequence_reset();
         test_random(500);
