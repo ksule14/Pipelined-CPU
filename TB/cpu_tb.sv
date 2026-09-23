@@ -5,7 +5,13 @@
 // Drives reset, runs the program loaded in instr_mem.hex to completion,
 // then checks every register and the relevant memory location against
 // expected values derived from manual trace of that program.
-module cpu_tb;
+module cpu_tb #(
+    // Which program to load and how long it is. Defaults reproduce the
+    // original hardware-verified run (instr_mem.hex / 24 instructions);
+    // override both via `vsim -G` to benchmark a different program.
+    parameter string  HEX_FILE       = "uart_instr.hex",
+    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH
+);
     import codes_pkg::*;
     import branch_fsm_pkg::*;
     import pipeline_pkg::*;
@@ -36,6 +42,51 @@ module cpu_tb;
     int error_count = 0;
 
     // =========================================================================
+    // Performance counters — cache hit/miss and branch predictor accuracy.
+    //
+    // Every counter below increments exactly once per instruction, never once
+    // per stall cycle that instruction spends being serviced, even though the
+    // signals driving them (u_cache.read_en, ex_mem_reg.branch, ...) can stay
+    // asserted for several cycles while the pipeline is frozen.
+    // =========================================================================
+
+    // REGION_SPLIT_ADDR divides load addresses into two buckets so memory.hex's
+    // two stages (small repeated working set vs. conflicting 64B-stride
+    // sweep) can be scored separately. Stage 1 in memory.hex only ever
+    // touches addresses 0-28; stage 2 starts at byte address 32, so 32 is an
+    // exact, non-arbitrary boundary between them. For programs that don't
+    // have two such stages (e.g. array_sum_loop.hex) region2 simply captures
+    // the bulk of the accesses and can be ignored.
+    localparam logic [31:0] REGION_SPLIT_ADDR = 32'd32;
+
+    int cache_access_count;      // total load requests presented to the cache
+    int cache_miss_count;        // of those, how many missed
+    int region1_access_count;    // subset with addr <  REGION_SPLIT_ADDR
+    int region1_miss_count;
+    int region2_access_count;    // subset with addr >= REGION_SPLIT_ADDR
+    int region2_miss_count;
+
+    int branch_total_count;      // branch instructions resolved in EX/MEM
+    int branch_correct_count;    // predictor's call matched the actual outcome
+    int branch_mispredict_count;
+
+    // A load's FIRST cycle of residency in ex_mem_reg is exactly one cycle
+    // after ex_mem_en was last high (that's what latched it there). Gating on
+    // that, rather than directly on "read_en && state==IDLE", matters because
+    // the cache FSM returns to IDLE on the very last stall cycle of a MISS --
+    // the same cycle the missed instruction is still resident in ex_mem_reg,
+    // now hitting -- so sampling "read_en && state==IDLE" on every posedge
+    // would fire a second time per miss (once as the miss, once again as a
+    // phantom hit when it resolves). prev_ex_mem_en pins the check to only
+    // the instruction's true first cycle, whether it hits or misses.
+    logic prev_ex_mem_en;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) prev_ex_mem_en <= 1'b0;
+        else        prev_ex_mem_en <= dut.ex_mem_en;
+    end
+    wire cache_read_req = prev_ex_mem_en && dut.ex_mem_reg.mem_read;
+
+    // =========================================================================
     // Testbench flip-flops (prog_done_latched and rst_done)
     // =========================================================================
 
@@ -60,12 +111,58 @@ module cpu_tb;
 
     // Connect the four top-level ports of cpu_top.  All internal signals are
     // accessed for checking via hierarchical references (dut.<path>).
-    cpu_top dut(
+    cpu_top #(
+        .PROGRAM_LENGTH(PROGRAM_LENGTH),
+        .HEX_FILE(HEX_FILE)
+    ) dut(
         .clk(clk),
         .rst_n(rst_n),
         .error(error),
         .prog_done(prog_done)
     );
+
+    // =========================================================================
+    // Performance counter sampling — one always_ff, gated the same way as
+    // every other TB flip-flop (async clear on reset).
+    // =========================================================================
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            cache_access_count      <= 0;
+            cache_miss_count        <= 0;
+            region1_access_count    <= 0;
+            region1_miss_count      <= 0;
+            region2_access_count    <= 0;
+            region2_miss_count      <= 0;
+            branch_total_count      <= 0;
+            branch_correct_count    <= 0;
+            branch_mispredict_count <= 0;
+        end else begin
+            if (cache_read_req) begin
+                cache_access_count <= cache_access_count + 1;
+                if (!dut.u_cache.hit) cache_miss_count <= cache_miss_count + 1;
+
+                if (dut.u_cache.addr < REGION_SPLIT_ADDR) begin
+                    region1_access_count <= region1_access_count + 1;
+                    if (!dut.u_cache.hit) region1_miss_count <= region1_miss_count + 1;
+                end else begin
+                    region2_access_count <= region2_access_count + 1;
+                    if (!dut.u_cache.hit) region2_miss_count <= region2_miss_count + 1;
+                end
+            end
+
+            // ex_mem_reg.branch is high for exactly one cycle per branch
+            // instruction: branches never assert mem_read/mem_write so they
+            // never trigger cache_stall themselves, meaning ex_mem_reg always
+            // advances away from a branch on the very next cycle.
+            if (dut.ex_mem_reg.branch) begin
+                branch_total_count <= branch_total_count + 1;
+                if (dut.ex_mem_reg.predict_taken == dut.branch_taken)
+                    branch_correct_count <= branch_correct_count + 1;
+                else
+                    branch_mispredict_count <= branch_mispredict_count + 1;
+            end
+        end
+    end
 
     // =========================================================================
     // Clock generation — 10 ns period (100 MHz)
@@ -98,9 +195,16 @@ module cpu_tb;
         // to drain completely before sampling register and memory state.
         run_program();
 
-        // Compare every architected register and the written memory word against
-        // the values produced by a manual trace of instr_mem.hex.
-        verify_final_state();
+        // verify_final_state()'s expected values are a manual trace specific
+        // to the default program; benchmark programs (array_sum_loop.hex,
+        // memory.hex, ...) just dump state and go straight to the perf report.
+        if (HEX_FILE == "uart_instr.hex") begin
+            verify_final_state();
+        end else begin
+            dump_registers();
+        end
+
+        report_perf_counters();
 
         // Report overall pass/fail based on the accumulated error count.
         if (error_count == 0) begin
@@ -171,7 +275,7 @@ module cpu_tb;
     // =========================================================================
     task automatic run_program();
         int cycle_count = 0;    // counts posedge clk events since execution began
-        int max_cycles = 1000;  // upper bound; far exceeds the expected ~33 cycles
+        int max_cycles = 10000; // upper bound; generous enough for the cache-miss-heavy benchmark programs
 
         $display("[CPU_TB] Starting program execution...");
 
@@ -343,6 +447,36 @@ module cpu_tb;
             $display("[CPU_TB] FAIL  Mem[%0d] = 0x%08h (%0d)  expected 0x%08h (%0d)  <--",
                      addr_bytes, actual, actual, expected, expected);
         end
+    endtask
+
+    // =========================================================================
+    // Task: report_perf_counters
+    //   Prints cache hit/miss and branch predictor accuracy for whichever
+    //   program just ran. Called unconditionally (unlike verify_final_state,
+    //   which only applies to the default program).
+    // =========================================================================
+    task automatic report_perf_counters();
+        real hit_rate_overall, hit_rate_region1, hit_rate_region2, branch_accuracy;
+
+        hit_rate_overall = (cache_access_count == 0) ? 0.0 :
+            100.0 * (cache_access_count - cache_miss_count) / cache_access_count;
+        hit_rate_region1 = (region1_access_count == 0) ? 0.0 :
+            100.0 * (region1_access_count - region1_miss_count) / region1_access_count;
+        hit_rate_region2 = (region2_access_count == 0) ? 0.0 :
+            100.0 * (region2_access_count - region2_miss_count) / region2_access_count;
+        branch_accuracy = (branch_total_count == 0) ? 0.0 :
+            100.0 * branch_correct_count / branch_total_count;
+
+        $display("[CPU_TB] ---- Performance Counters (%s) ----", HEX_FILE);
+        $display("[CPU_TB] Cache overall:  %0d accesses, %0d misses, hit rate = %0.2f%%",
+                  cache_access_count, cache_miss_count, hit_rate_overall);
+        $display("[CPU_TB]   Region 1 (addr < %0d):  %0d accesses, %0d misses, hit rate = %0.2f%%",
+                  REGION_SPLIT_ADDR, region1_access_count, region1_miss_count, hit_rate_region1);
+        $display("[CPU_TB]   Region 2 (addr >= %0d): %0d accesses, %0d misses, hit rate = %0.2f%%",
+                  REGION_SPLIT_ADDR, region2_access_count, region2_miss_count, hit_rate_region2);
+        $display("[CPU_TB] Branch predictor: %0d resolved, %0d correct, %0d mispredicted, accuracy = %0.2f%%",
+                  branch_total_count, branch_correct_count, branch_mispredict_count, branch_accuracy);
+        $display("[CPU_TB] ----------------------------------------------------");
     endtask
 
 endmodule

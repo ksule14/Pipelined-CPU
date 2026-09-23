@@ -3,7 +3,8 @@ import branch_fsm_pkg::*;
 import pipeline_pkg::*;
 
 module cpu_top #(
-    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH
+    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH,
+    parameter string  HEX_FILE       = "uart_instr.hex"
 )(
     input  logic clk,
     input  logic rst_n,
@@ -147,7 +148,8 @@ module cpu_top #(
     );
 
     instruction_mem #(
-        .PROGRAM_LENGTH(PROGRAM_LENGTH)
+        .PROGRAM_LENGTH(PROGRAM_LENGTH),
+        .HEX_FILE(HEX_FILE)
     ) u_imem (
         .addr       (pc_current),
         .instruction(if_instruction),
@@ -364,11 +366,18 @@ module cpu_top #(
             halt_branch_gate    <= 1'b0;
             prog_end_seen       <= 1'b0;
         end else begin
-            halt_request        <= if_id_reg.prog_end && !id_branch;
+            // Triggered off ex_mem_reg.prog_end rather than if_id_reg.prog_end:
+            // this design always fetches PC+4 with no speculative redirect, so
+            // if the final instruction sits right after a loop-back branch it
+            // gets fetched into IF/ID on every iteration, not just the last.
+            // ex_mem_reg.prog_end can only go high once that fetch has survived
+            // flush_IF_ID and flush_ID_EX without being squashed, so it can't
+            // be set by a speculative fetch that the branch goes on to flush.
+            halt_request        <= ex_mem_reg.prog_end && !ex_mem_reg.branch;
             halt_gate           <= halt_request;
             halt_branch_request <= ex_mem_reg.prog_end && ex_mem_reg.branch && !branch_taken;
             halt_branch_gate    <= halt_branch_request;
-            if (if_id_reg.prog_end)
+            if (ex_mem_reg.prog_end && !ex_mem_reg.branch)
                 prog_end_seen   <= 1'b1;
         end
     end
@@ -447,19 +456,31 @@ end
         if (!rst_n) begin
             ex_mem_reg <= '0;
         end else if (ex_mem_en) begin
-            ex_mem_reg.branch      <= id_ex_reg.branch;
-            ex_mem_reg.mem_read    <= id_ex_reg.mem_read;
-            ex_mem_reg.mem_write   <= id_ex_reg.mem_write;
-            ex_mem_reg.mem_to_reg  <= id_ex_reg.mem_to_reg;
-            ex_mem_reg.reg_write   <= id_ex_reg.reg_write;
-            ex_mem_reg.alu_result  <= ex_alu_result;
-            ex_mem_reg.zero_flag   <= ex_zero_flag;
-            ex_mem_reg.rs2_data    <= ex_alu_b_pre;
-            ex_mem_reg.branch_addr <= ex_branch_addr;
-            ex_mem_reg.pc            <= id_ex_reg.pc;
-            ex_mem_reg.rd            <= id_ex_reg.rd;
-            ex_mem_reg.prog_end      <= id_ex_reg.prog_end;
-            ex_mem_reg.predict_taken <= id_ex_reg.predict_taken;
+            // flush_ID_EX means the instruction currently sitting in id_ex_reg
+            // is on the wrong path and is about to be zeroed there -- but that
+            // zeroing only takes effect for id_ex_reg itself starting next
+            // cycle. Without this check, this same edge would still copy that
+            // wrong-path instruction's reg_write/mem_write/branch/prog_end
+            // control signals into ex_mem_reg (one stage further than
+            // intended) before it disappears, letting a squashed instruction
+            // actually execute in MEM/WB on the very next cycle.
+            if (flush_ID_EX) begin
+                ex_mem_reg <= '0;
+            end else begin
+                ex_mem_reg.branch      <= id_ex_reg.branch;
+                ex_mem_reg.mem_read    <= id_ex_reg.mem_read;
+                ex_mem_reg.mem_write   <= id_ex_reg.mem_write;
+                ex_mem_reg.mem_to_reg  <= id_ex_reg.mem_to_reg;
+                ex_mem_reg.reg_write   <= id_ex_reg.reg_write;
+                ex_mem_reg.alu_result  <= ex_alu_result;
+                ex_mem_reg.zero_flag   <= ex_zero_flag;
+                ex_mem_reg.rs2_data    <= ex_alu_b_pre;
+                ex_mem_reg.branch_addr <= ex_branch_addr;
+                ex_mem_reg.pc            <= id_ex_reg.pc;
+                ex_mem_reg.rd            <= id_ex_reg.rd;
+                ex_mem_reg.prog_end      <= id_ex_reg.prog_end;
+                ex_mem_reg.predict_taken <= id_ex_reg.predict_taken;
+            end
         end
     end
 
@@ -485,12 +506,20 @@ end
     assign uart_stall = uart_store && fifo_full;
     assign redirect_target = branch_taken ? ex_mem_reg.branch_addr : (ex_mem_reg.pc + 4);
 
-    // prog_done_pulse is high for the 1-2 cycles when the last instruction is at the
-    // appropriate stage. prog_done_held latches that pulse so the output stays asserted
-    // for the rest of the run. Required to drive a board LED visibly.
-    assign prog_done_pulse = (prog_done_nb     && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
-                           || (id_ex_reg.prog_end && !id_ex_reg.branch && !(ex_mem_reg.branch && branch_taken))
-                           || (ex_mem_reg.prog_end && ex_mem_reg.branch);
+    // prog_done_pulse fires once the final instruction resolves in EX/MEM.
+    // prog_done_held latches that pulse so the output stays asserted for the
+    // rest of the run. Required to drive a board LED visibly.
+    //
+    // Deliberately keyed off ex_mem_reg.prog_end alone (not the earlier
+    // prog_done_nb/id_ex_reg.prog_end signals this used to also check):
+    // this design always fetches PC+4 with no speculative redirect, so if
+    // the final instruction sits right after a loop-back branch it gets
+    // fetched into IF/ID and ID/EX on every iteration, not just the last.
+    // ex_mem_reg.prog_end can only go high once that fetch has survived
+    // flush_IF_ID and flush_ID_EX without being squashed, so unlike the
+    // earlier-stage signals it can't pulse from a speculative fetch that
+    // the branch goes on to flush.
+    assign prog_done_pulse = ex_mem_reg.prog_end;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n)               prog_done_held <= 1'b0;

@@ -5,7 +5,8 @@ import codes_pkg::DEPTH;
 // based on the address provided by the PC.
 // Initialized with the contents of instr_mem.hex, which is a hex file containing the instructions of the program
 module instruction_mem #(
-    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH
+    parameter integer PROGRAM_LENGTH = codes_pkg::PROGRAM_LENGTH,
+    parameter string  HEX_FILE       = "uart_instr.hex"
 ) (
     // address input from the PC
     input  logic [WORD_WIDTH-1:0] addr,
@@ -23,7 +24,7 @@ module instruction_mem #(
 
     initial begin
         // loads the IM with the instructions from the hex file
-        $readmemh("uart_instr.hex", instr_mem);
+        $readmemh(HEX_FILE, instr_mem);
     end
 
     // Address from PC counts in bytes, (+4 every time) but the IM counts in words(instructions)
