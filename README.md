@@ -102,6 +102,20 @@ The modules in this project have been verified using SystemVerilog testbenches t
 | sw rs2, offset(rs1) | S | stores data from rs2 into memory address (offset + rs1) |
 | beq rs1, rs2 offset | B | compares rs1, rs2 and jumps to PC + offset if equal |
 
+## Implementation & Performance Specs
+Post-implementation results from Vivado 2025.2, targeting the AMD Urbana board (Spartan-7 FPGA), including the branch predictor's BTB storage.
+
+| Metric | Value |
+| ------ | ----- |
+| Target clock frequency | 100 MHz |
+| Worst Negative Slack (WNS) | +1.316 ns |
+| Estimated Fmax | ~115 MHz |
+| LUT utilization | 4% |
+| FF utilization | 4% |
+| BRAM utilization | 1% |
+
+Timing closes at 100 MHz with over a nanosecond of slack to spare, and resource utilization stays in the low single digits, leaving significant headroom on the Spartan-7 fabric for further extensions (e.g. a deeper cache, a wider BTB, additional pipeline stages).
+
 ## Tools and Synthesis
 Avoid errors by using Vivado 2025.2.
 Project written entirely in SystemVerilog and verified using EDAPlayground Aldec Riviera Pro simulator as well as QuestaSim.
